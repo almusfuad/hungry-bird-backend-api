@@ -5,7 +5,7 @@ from .views import RestaurantViewSet, MenuItemViewSet
 router = DefaultRouter()
 
 router.register(r'restaurants', RestaurantViewSet, basename='restaurant')
-router.register(r'menu-items', MenuItemViewSet, basename='menuitem')
+router.register(r'menu_items', MenuItemViewSet, basename='menuitem')
 
 
 urlpatterns = [

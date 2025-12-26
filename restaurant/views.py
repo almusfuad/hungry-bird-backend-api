@@ -11,12 +11,22 @@ from .serializers import RestaurantSerializer, MenuItemSerializer, AddOnSerializ
 class RestaurantViewSet(viewsets.ModelViewSet):
     serializer_class = RestaurantSerializer
 
+    @property
+    def user_role(self):
+        """Safely returns the user role as an integer or None"""
+        role = getattr(self.request.user, 'role', None)
+        try:
+            return int(role) if role is not None else None
+        except (ValueError, TypeError):
+            return None
+
     def get_permissions(self):
         '''Allow any one for Read, Only restaurant owners can create/update/deleter'''
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
-        else:
-            return [IsRestaurantOwner()]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsRestaurantOwner()]
+        return [AllowAny()]
         
 
     def get_queryset(self):
@@ -42,28 +52,26 @@ class RestaurantViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return base_queryset
         
-        if user.role == 2:  # Restaurant Owner
+        if self.user_role == 2:  # Restaurant Owner
             return base_queryset.filter(owner=user) # Restaurant owner sees only their restaurant
 
-        elif user.role == 3:  # Driver
+        elif self.user_role == 3:  # Driver
             return base_queryset.filter(drivers=user) # Driver sees only assigned restaurants
         else:
             return base_queryset
     
 
     def perform_create(self,  serializer):
-        if self.request.user.role != 2:
-            raise PermissionError('Only restaurant owners can create restaurants.')
         serializer.save(owner=self.request.user)
     
     def perform_update(self, serializer):
         restaurant = self.get_object()
-        if self.request.user.role != 2 or restaurant.owner != self.request.user:
+        if self.user_role != 2 or restaurant.owner != self.request.user:
             raise PermissionError('Only restaurant owners can update restaurants.')
         serializer.save()
     
     def perform_destroy(self, instance):
-        if self.request.user.role != 2 or instance.owner != self.request.user:
+        if self.user_role != 2 or instance.owner != self.request.user:
             raise PermissionError('Only restaurant owners can delete restaurants.')
         instance.is_active = False
         instance.save()
@@ -71,11 +79,6 @@ class RestaurantViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsRestaurantOwner])
     def my_restaurants(self, request):
         '''Custom endpoints for restaurant owners'''
-        if request.user.role != 2:
-            return Response(
-                {'error': 'Only restaurant owners can access this endpoint.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -84,7 +87,7 @@ class RestaurantViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsDriver])
     def assigned_restaurants(self, request):
         '''Custom endpoint for drivers to see their assigned restaurants'''
-        if request.user.role != 3:
+        if self.user_role != 3:
             return Response(
                 {'error': 'Only drivers can access this endpoint.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -97,10 +100,22 @@ class RestaurantViewSet(viewsets.ModelViewSet):
 
 class MenuItemViewSet(viewsets.ModelViewSet):
     serializer_class = MenuItemSerializer
+    
+
+    @property
+    def user_role(self):
+        """Safely returns the user role as an integer or None"""
+        role = getattr(self.request.user, 'role', None)
+        try:
+            return int(role) if role is not None else None
+        except (ValueError, TypeError):
+            return None
 
     def get_permissions(self):
         '''Allow any one for Read, Only restaurant owners can create/update/deleter'''
         if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        elif self.action in ['menu_categories', 'add_ons']:
             return [AllowAny()]
         else:
             return [IsRestaurantOwner()]
@@ -129,14 +144,14 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return base_queryset
         
-        if user.role == 2:  # Restaurant Owner
+        if self.user_role == 2:  # Restaurant Owner
             return base_queryset.filter(restaurant__owner=user) # Restaurant owner sees only their menu items
         else:
             return base_queryset
     
 
     def perform_create(self, serializer):
-        if self.request.user.role != 2:
+        if self.user_role != 2:
             raise PermissionError('Only restaurant owners can create menu items.')
         restaurant_id = self.request.data.get('restaurant')
         restaurant = Restaurant.objects.get(id=restaurant_id)
@@ -147,12 +162,12 @@ class MenuItemViewSet(viewsets.ModelViewSet):
     
     def perform_update(self, serializer):
         menu_item = self.get_object()
-        if self.request.user.role != 2 or menu_item.restaurant.owner != self.request.user:
+        if self.user_role != 2 or menu_item.restaurant.owner != self.request.user:
             raise PermissionError('Only restaurant owners can update menu items.')
         serializer.save()
     
     def perform_destroy(self, instance):
-        if self.request.user.role != 2 or instance.restaurant.owner != self.request.user:
+        if self.user_role != 2 or instance.restaurant.owner != self.request.user:
             raise PermissionError('Only restaurant owners can delete menu items.')
         instance.is_active = False
         instance.save()
@@ -170,7 +185,7 @@ class MenuItemViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post', 'patch', 'delete'], permission_classes=[IsRestaurantOwner])
     def manage_add_ons(self, request):
         '''Create, update, delete add-ons for menu items (restaurant owners only)'''
-        if request.user.role != 2:
+        if self.user_role != 2:
             return Response(
                 {'error': 'Only restaurant owners can manage add-ons.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -247,16 +262,16 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         
     
 
-    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    @action(detail=False, methods=['get'])
     def menu_categories(self, request):
         '''Get distinct menu categories'''
         categories = MenuItem.objects.filter(is_active=True)\
             .values_list('category', flat=True).distinct()\
             .order_by('category')
         
-        category_choices = dict(MenuItem.CATEGORY_CHOICES)
-        data = [
-            {'value': cat, 'label': category_choices.get(cat, cat)}
-            for cat in categories if cat
-        ]
-        return Response(data)
+        return Response({
+            'menu_categories': [
+                { 'value': category[0], 'label': category[1]}
+                for category in MenuItem.CATEGORY_CHOICES
+            ]
+        })
