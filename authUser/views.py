@@ -3,7 +3,7 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import generics, status
+from rest_framework import generics, status, views
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
@@ -62,7 +62,7 @@ class LoginView(generics.GenericAPIView):
     
 
 
-class LogoutView(generics.RetrieveAPIView):
+class LogoutView(views.APIView):
     '''Logout user by blacklisting their refresh token'''
     permission_classes = [IsAuthenticated]
     def get(self, request):

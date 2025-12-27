@@ -84,8 +84,8 @@ class RestaurantViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-    @action(detail=False, methods=['get'], permission_classes=[IsDriver])
-    def assigned_restaurants(self, request):
+    @action(detail=False, methods=['get'], permission_classes=[IsRestaurantOwner])
+    def assigned_drivers(self, request):
         '''Custom endpoint for drivers to see their assigned restaurants'''
         if self.user_role != 3:
             return Response(
@@ -158,7 +158,7 @@ class MenuItemViewSet(viewsets.ModelViewSet):
 
         if restaurant.owner != self.request.user:
             raise PermissionError('You can only add menu items to your own restaurant.')
-        serializer.save()
+        serializer.save(restaurant=restaurant)
     
     def perform_update(self, serializer):
         menu_item = self.get_object()
@@ -182,82 +182,72 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
 
-    @action(detail=False, methods=['post', 'patch', 'delete'], permission_classes=[IsRestaurantOwner])
-    def manage_add_ons(self, request):
-        '''Create, update, delete add-ons for menu items (restaurant owners only)'''
-        if self.user_role != 2:
+    @action(detail=False, methods=['post'], permission_classes=[IsRestaurantOwner])
+    def create_add_on(self, request):
+        '''Create add-ons for menu items (restaurant owners only)'''
+        menu_item_id = request.data.get('menu_item')
+        try:
+            menu_item = MenuItem.objects.select_related('restaurant').get(id=menu_item_id)
+            if menu_item.restaurant.owner != request.user:
+                return Response(
+                    {'error': 'You can only manage add-ons for your own menu items.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        except MenuItem.DoesNotExist:
             return Response(
-                {'error': 'Only restaurant owners can manage add-ons.'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Menu item not found.'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        # Get Menu
-        menu_item = None
-        if request.method in ['POST', 'PATCH']:
-            menu_item_id = request.data.get('menu_item')
-            try:
-                menu_item = MenuItem.objects.select_related(
-                    'restaurant'
-                ).get(id=menu_item_id)
-                if menu_item.restaurant.owner != request.user:
-                    return Response(
-                        {'error': 'You can only manage add-ons for your own menu items.'},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-            except MenuItem.DoesNotExist:
+        
+        serializer = AddOnSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(menu_item=menu_item)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    @action(detail=False, methods=['patch'], permission_classes=[IsRestaurantOwner])
+    def update_add_on(self, request, add_on_id=None):
+        '''Update add-ons for menu items (restaurant owners only)'''
+        try:
+            add_on = AddOn.objects.select_related('menu_item__restaurant').get(id=add_on_id)
+            if add_on.menu_item.restaurant.owner != request.user:
                 return Response(
-                    {'error': 'Menu item not found.'},
-                    status=status.HTTP_404_NOT_FOUND
+                    {'error': 'You can only update add-ons for your own menu items.'},
+                    status=status.HTTP_403_FORBIDDEN
                 )
-
-            if request.method == 'POST':
-                serializer = AddOnSerializer(data=request.data)
-                if serializer.is_valid():
-                    serializer.save()
-                    return Response(serializer.data, status=status.HTTP_201_CREATED)
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
-            elif request.method == 'PATCH':
-                add_on_id = request.data.get('id')
-                try:
-                    add_on = AddOn.objects.select_related(
-                        'menu_item__restaurant'
-                    ).get(id=add_on_id)
-                    if add_on.menu_item.restaurant.owner != request.user:
-                        return Response(
-                            {'error': 'You can only update add-ons for your own menu items.'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
-                except AddOn.DoesNotExist:
-                    return Response(
-                        {'error': 'Add-on not found.'},
-                        status=status.HTTP_404_NOT_FOUND
-                    )
-                serializer = AddOnSerializer(add_on, data=request.data, partial=True)
-                if serializer.is_valid():
-                    serializer.save()
-                    return Response(serializer.data)
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
+        except AddOn.DoesNotExist:
+            return Response(
+                {'error': 'Add-on not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = AddOnSerializer(add_on, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-        elif request.method == 'DELETE':
-            add_on_id = request.data.get('id')
-            try:
-                add_on = AddOn.objects.select_related(
-                    'menu_item__restaurant'
-                ).get(id=add_on_id)
-                if add_on.menu_item.restaurant.owner != request.user:
-                    return Response(
-                        {'error': 'You can only delete add-ons for your own menu items.'},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-            except AddOn.DoesNotExist:
+    @action(detail=False, methods=['delete'], permission_classes=[IsRestaurantOwner])
+    def delete_add_on(self, request, add_on_id=None):
+        '''Delete add-ons for menu items (restaurant owners only)'''
+        try:
+            add_on = AddOn.objects.select_related('menu_item__restaurant').get(id=add_on_id)
+            if add_on.menu_item.restaurant.owner != request.user:
                 return Response(
-                    {'error': 'Add-on not found.'},
-                    status=status.HTTP_404_NOT_FOUND
+                    {'error': 'You can only delete add-ons for your own menu items.'},
+                    status=status.HTTP_403_FORBIDDEN
                 )
-            add_on.is_active = False
-            add_on.save()
-            return Response(status=status.HTTP_204_NO_CONTENT) 
+        except AddOn.DoesNotExist:
+            return Response(
+                {'error': 'Add-on not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        add_on.is_active = False
+        add_on.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
         
         
     
@@ -275,3 +265,5 @@ class MenuItemViewSet(viewsets.ModelViewSet):
                 for category in MenuItem.CATEGORY_CHOICES
             ]
         })
+    
+
