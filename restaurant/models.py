@@ -1,18 +1,8 @@
 from django.db import models
-
+from hungryBird.baseModels import TimeStampedModel, LocationModel
 
 # Create your models here.
-class TimeStampedModel(models.Model):
-    '''Abstract Base model'''
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-    
-    class Meta:
-        abstract = True
-
-
-class Restaurant(TimeStampedModel):
+class Restaurant(TimeStampedModel, LocationModel):
     owner = models.ForeignKey(
         'authUser.User', on_delete=models.CASCADE,
         limit_choices_to={'role': 2},
@@ -21,14 +11,27 @@ class Restaurant(TimeStampedModel):
     name = models.CharField(max_length=255)
     address = models.TextField()
     phone_number = models.CharField(max_length=15)
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
     drivers = models.ManyToManyField(
         'authUser.User',
         limit_choices_to={'role': 3},
         related_name='assigned_restaurants',
         blank=True
     )
+
+
+    def assign_driver(self, order):
+        # Assign driver with no pending order
+        available_drivers = self.drivers.filter(
+            role = 3,
+        ).exclude(
+            deliveries__status__in=[3,4] # Exclude drivers with 'Ready for Pickup' or 'Out for Delivery' orders
+        ).order_by('?') # Random order to distribute assignments fairly
+        if available_drivers.exists():
+            driver = available_drivers.first()
+            order.driver = driver
+            order.save()
+            return driver
+        return None
 
 
     def __str__(self):
