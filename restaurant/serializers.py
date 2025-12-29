@@ -14,11 +14,14 @@ class AddOnSerializer(serializers.ModelSerializer):
 
 class MenuItemSerializer(serializers.ModelSerializer):
     add_ons = AddOnSerializer(many=True, read_only=True)
+    restaurant_id = serializers.PrimaryKeyRelatedField(
+        source='restaurant',
+        read_only = True
+    )
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'category', 'description', 'price', 'is_available', 'add_ons']
-
+        fields = ['id', 'name', 'category', 'description', 'price',  'is_available', 'restaurant_id', 'add_ons', ]
 
 class RestaurantDriverSerializer(serializers.ModelSerializer):
     class Meta:

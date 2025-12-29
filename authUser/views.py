@@ -86,11 +86,22 @@ class UserQueryView(generics.ListAPIView):
     def get_queryset(self):
         user_id = self.request.query_params.get('id')
         role = self.request.query_params.get('role')
+        phone_number = self.request.query_params.get('phone_number')
 
         if user_id:
             return User.objects.filter(id=user_id)
 
         if role:
             return User.objects.filter(role=role)
+        
+        if phone_number:
+            return User.objects.filter(username=phone_number)
 
         return User.objects.filter(id=self.request.user.id)
+
+
+class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+    queryset = User.objects.all()
+    lookup_field = ['id', 'username', 'phone_number']

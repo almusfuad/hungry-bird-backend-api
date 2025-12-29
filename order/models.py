@@ -35,6 +35,8 @@ class Order(TimeStampedModel, LocationModel):
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     delivery_address = models.TextField()
 
+
+    # Domain Logic Methods
     def can_edit(self):
         return self.status in [1, 2] # Pending or Preparing
     
@@ -56,6 +58,33 @@ class Order(TimeStampedModel, LocationModel):
                       for add_on in item.order_add_ons.all()])
         return total
     
+
+    # State Transitions
+    def mark_ready_for_pickup(self):
+        with atomic():
+            self.save(update_fields=['status', 'updated_at'])  
+    
+        if not self.driver:
+            driver = self.restaurant.assign_driver(self)
+            if driver:
+                self.driver = driver
+                self.save(update_fields=['driver'])
+                self._notify_driver(driver)
+
+
+    def _notify_driver(self, driver):
+        channel = get_channel_layer()
+        async_to_sync(channel.group_send)(
+            f"driver_{driver.id}",
+            {
+                'type': 'delivery.request',
+                'order_id': self.id,
+                'pickup': self.get_pickup_location(),
+                'drop': self.get_delivery_location(),
+            }
+        )
+
+
     def __str__(self):
         return f"Order #{self.id} by {self.customer.username}"
     
@@ -87,21 +116,3 @@ class OrderAddOn(TimeStampedModel):
     def __str__(self):
         return f"{self.quantity} x {self.add_on.name} for OrderItem #{self.order_item.id}"
     
-
-# Signal for order status changes
-@receiver(post_save, sender='order.Order')
-def handle_order_status_change(post_save, instance, **kwargs):
-    if instance.status == 3 and not instance.driver:
-        driver = instance.restaurant.assign_driver(instance)
-        if driver:
-            # Notify driver via Channels
-            channel = get_channel_layer()
-            async_to_sync(channel.group_send)(
-                f"driver_{driver.id}",
-                {
-                    'type': 'delivery.request',
-                    'order_id': instance.id,
-                    'pickup': instance.get_pickup_location(),
-                    'drop': instance.get_delivery_location(),
-                }
-            )

@@ -25,7 +25,12 @@ class OrderViewSet(ModelViewSet):
     
 
     def perform_create(self, serializer):
-        serializer.save(customer=self.request.user)
+        if int(self.request.user.role) != 1:
+            return Response(
+                {'error': 'Only customers can place orders.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        serializer.save()
 
 
     def get_queryset(self):
