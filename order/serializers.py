@@ -60,12 +60,12 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'customer', 'restaurant_id',
+            'id', 'customer', 'restaurant_id', 'status',
             'status', 'total_price', 'delivery_address',
             'items', 'payment_method',
             'latitude', 'longitude', 'created_at'
         ]
-        read_only_fields = ['id', 'status', 'total_price', 'customer']
+        read_only_fields = ['id', 'total_price', 'customer', 'created_at']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -166,4 +166,99 @@ class OrderSerializer(serializers.ModelSerializer):
         
 
         
+
+    def update(self, instance, validated_data):
+        request = self.context['request']
+        user = request.user
+
+
+        # status update
+        if 'status' in validated_data:
+            instance.transition_status(
+                user, validated_data['status']
+            )
+
+        # Item updates (customer only)
+        items_data = validated_data.pop('items', None)
+        if items_data is not None:
+            if int(user.role) != 1:
+                raise serializers.ValidationError(
+                    "Only customers can update order items."
+                )
+            if not instance.can_edit():
+                raise serializers.ValidationError(
+                    "Order cannot be edited at this stage."
+                )
+            
+            self._sync_order_items(instance, items_data)
+
+            instance.total_price = instance.get_order_total()
+            instance.save(update_fields=['total_price'])
+        return instance
+    
+
+    # synchronize order items with provided data
+    def _sync_order_items(self, order, items_data):
+        existing_items = {
+            item.id: item for item in order.order_items.all()
+        }
+        incoming_item_ids = set()
+
+        for item_data in items_data:
+            item_id = item_data.get('id')
+            add_ons = item_data.pop('add_ons', [])
+
+            if item_id and item_id in existing_items:
+                order_item = existing_items[item_id]
+                order_item.quantity = item_data.get(
+                    'quantity', order_item.quantity
+                )
+                order_item.save()
+                self._sync_add_ons(order_item, add_ons)
+                incoming_item_ids.add(item_id)
+            else:
+                order_item = OrderItem.objects.create(
+                    order=order,
+                    **item_data
+                )
+                self._sync_add_ons(order_item, add_ons)
+                incoming_item_ids.add(order_item.id)
+
+
+        # Remove items not in incoming data
+        for item_id, order_item in existing_items.items():
+            if item_id not in incoming_item_ids:
+                order_item.delete()
+
+
+    
+    # synchronize add-ons for an order item
+    def _sync_add_ons(self, order_item, add_ons):
+        existing = {
+            ao.add_on_id: ao for ao in order_item.order_add_ons.all()
+        }
+        incoming_ao_ids = set()
+
+        for ao in add_ons:
+            ao_id = ao['id']
+            qty = ao['quantity']
+
+            if ao_id in existing:
+                existing[ao_id].quantity = qty
+                existing[ao_id].save()
+            else:
+                OrderAddOn.objects.create(
+                    order_item=order_item,
+                    add_on_id=ao_id,
+                    quantity=qty
+                )
+
+            incoming_ao_ids.add(ao_id)
+
+    
+        # Remove add-ons not in incoming data
+        for ao_id, order_add_on in existing.items():
+            if ao_id not in incoming_ao_ids:
+                order_add_on.delete()
+
 

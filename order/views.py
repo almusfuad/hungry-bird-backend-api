@@ -2,6 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 from order.models import Order
 from order.serializers import OrderSerializer
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from hungryBird.permissions import IsCustomer, IsRestaurantOwner, IsDriver
 
@@ -13,14 +14,10 @@ class OrderViewSet(ModelViewSet):
 
 
     def get_permissions(self):
-        if self.action in ['create', 'list', 'retrieve', 'partial_update']:
+        if self.action in ['create', 'destroy']:
             permission_classes = [IsCustomer]
-        elif self.action in ['partial_update', 'destroy', 'list', 'retrieve']:
-            permission_classes = [IsRestaurantOwner]
-        elif self.action in ['list']:
-            permission_classes = [IsDriver]
         else:
-            permission_classes = []
+            permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
     
 
@@ -43,3 +40,14 @@ class OrderViewSet(ModelViewSet):
             elif int(user.role) == 3:  # Driver
                 return Order.objects.filter(driver=user)
         return Order.objects.none()
+    
+
+    def partial_update(self, request, *args, **kwargs):
+        order = self.get_object()
+        serializer = self.get_serializer(
+            order, data=request.data, partial=True,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

@@ -1,11 +1,9 @@
-from django.db import models
+from django.db import models, transaction
 from hungryBird.baseModels import TimeStampedModel, LocationModel
 from django.utils import timezone
-from django.db.transaction import atomic
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from rest_framework.exceptions import PermissionDenied
 
 # Create your models here.
 class Order(TimeStampedModel, LocationModel):
@@ -38,7 +36,9 @@ class Order(TimeStampedModel, LocationModel):
 
     # Domain Logic Methods
     def can_edit(self):
-        return self.status in [1, 2] # Pending or Preparing
+        return self.status in [1, 2] \
+             or self.created_at >= \
+                 timezone.now() - timezone.timedelta(minutes=5) # Pending or Preparing
     
     def get_pickup_location(self):
         return {
@@ -60,11 +60,45 @@ class Order(TimeStampedModel, LocationModel):
     
 
     # State Transitions
-    def mark_ready_for_pickup(self):
-        with atomic():
+    def _allowed_transitions(self):
+        return {
+            1: {
+                1: [6], # Customer can cancel
+                2: [6]
+            },
+            2: {  # Owner can change status from preparing to out for delivery
+                1: [2],
+                2: [3],
+                3: [4],
+            },
+            3: { # Driver can change status from ready for pickup to delivered
+                3: [4],
+                4: [5],
+            }
+        }
+
+
+    def transition_status(self, user, new_status):
+        role = int(user.role)
+        current_status = self.status
+
+        allowed = self._allowed_transitions().get(role, {}). \
+            get(current_status, [])
+        
+        if new_status not in allowed:
+            raise PermissionDenied("Invalid status transition.")
+        
+        
+
+        with transaction.atomic():
+            self.status = new_status
             self.save(update_fields=['status', 'updated_at'])  
     
-        if not self.driver:
+        # If order is cancelled, no further actions needed
+        if new_status == 6:
+            return
+
+        if new_status == 3 and not self.driver:  # Ready for Pickup by Owner
             driver = self.restaurant.assign_driver(self)
             if driver:
                 self.driver = driver
@@ -105,7 +139,7 @@ class OrderItem(TimeStampedModel):
 
 class OrderAddOn(TimeStampedModel):
     order_item = models.ForeignKey('order.OrderItem', 
-        on_delete=models.DO_NOTHING, related_name='order_add_ons')
+        on_delete=models.CASCADE, related_name='order_add_ons')
     add_on = models.ForeignKey('restaurant.AddOn', on_delete=models.DO_NOTHING)
     quantity = models.PositiveIntegerField()
 
