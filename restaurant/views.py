@@ -3,9 +3,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action, api_view, permission_classes
 from django.db.models import Prefetch
+from django.contrib.auth import get_user_model
 from hungryBird.permissions import IsRestaurantOwner
 from .models import Restaurant, MenuItem, AddOn
 from .serializers import RestaurantSerializer, MenuItemSerializer, AddOnSerializer
+
+User = get_user_model()
 
 # Create your views here.
 class RestaurantViewSet(viewsets.ModelViewSet):
@@ -82,45 +85,84 @@ class RestaurantViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-
-
-    @action(detail=False, methods=['get'], permission_classes=[IsRestaurantOwner])
-    def assigned_drivers(self, request):
-        '''Custom endpoint for drivers to see their assigned restaurants'''
-        if self.user_role != 3:
-            return Response(
-                {'error': 'Only drivers can access this endpoint.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
     
 
-    @action(detail=True, methods=['partial_update'], permission_classes=[IsRestaurantOwner])
-    def assign_driver(self, request, pk=None):
-        '''Assign a driver to a restaurant'''
-        restaurant = self.get_object()
-        if restaurant.owner != request.user:
-            return Response(
-                {'error': 'You can only assign drivers to your own restaurant.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        driver_number = request.data.get('driver_number')
+    @action(detail=False, methods=['patch'], permission_classes=[IsRestaurantOwner])
+    def add_driver(self, request):
+        """Assign a driver to a restaurant"""
+
         try:
-            driver = restaurant.drivers.get(username=driver_number, role=3)
-        except:
+            restaurant = Restaurant.objects.get(owner=request.user)
+        except Restaurant.DoesNotExist:
+            return Response(
+                {'error': 'Restaurant not found for this user.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        driver_id = request.data.get('driver_id')
+        if not driver_id:
+            return Response(
+                {'error': 'driver_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            driver = User.objects.get(id=driver_id, role=3)
+        except User.DoesNotExist:
             return Response(
                 {'error': 'Driver not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        if restaurant.drivers.filter(id=driver.id).exists():
+            return Response(
+                {'error': 'Driver already assigned to this restaurant.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         restaurant.drivers.add(driver)
-        restaurant.save()
+
         return Response(
-            {'success': f'Driver {driver.username} assigned to restaurant {restaurant.name}.'},
+            {
+                'success': f'Driver {driver.username} assigned to restaurant {restaurant.name}.'
+            },
             status=status.HTTP_200_OK
         )
     
+
+    @action(detail=False, methods=['patch'], permission_classes=[IsRestaurantOwner])
+    def remove_driver(self, request):
+        '''Remove a driver friom a restaurant'''
+
+        driver_id = request.data.get('driver_id')
+        if not driver_id:
+            return Response(
+                {'error': 'driver_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            restaurant = Restaurant.objects.get(owner=request.user)
+        except Restaurant.DoesNotExist:
+            return Response(
+                {'error': 'Restaurant not found for this user.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        try:
+            driver = restaurant.drivers.get(id=driver_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Driver not assigned to this restaurant.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        restaurant.drivers.remove(driver)
+        return Response(
+            {
+                'success': f'Driver {driver.username} removed from restaurant {restaurant.name}.'
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class MenuItemViewSet(viewsets.ModelViewSet):
