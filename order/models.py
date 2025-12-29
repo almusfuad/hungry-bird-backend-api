@@ -1,6 +1,11 @@
 from django.db import models
 from hungryBird.baseModels import TimeStampedModel, LocationModel
 from django.utils import timezone
+from django.db.transaction import atomic
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 # Create your models here.
 class Order(TimeStampedModel, LocationModel):
@@ -83,3 +88,20 @@ class OrderAddOn(TimeStampedModel):
         return f"{self.quantity} x {self.add_on.name} for OrderItem #{self.order_item.id}"
     
 
+# Signal for order status changes
+@receiver(post_save, sender='order.Order')
+def handle_order_status_change(post_save, instance, **kwargs):
+    if instance.status == 3 and not instance.driver:
+        driver = instance.restaurant.assign_driver(instance)
+        if driver:
+            # Notify driver via Channels
+            channel = get_channel_layer()
+            async_to_sync(channel.group_send)(
+                f"driver_{driver.id}",
+                {
+                    'type': 'delivery.request',
+                    'order_id': instance.id,
+                    'pickup': instance.get_pickup_location(),
+                    'drop': instance.get_delivery_location(),
+                }
+            )

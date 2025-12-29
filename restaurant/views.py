@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action, api_view, permission_classes
 from django.db.models import Prefetch
-from .permissions import IsRestaurantOwner, IsCustomer, IsDriver
+from hungryBird.permissions import IsRestaurantOwner
 from .models import Restaurant, MenuItem, AddOn
 from .serializers import RestaurantSerializer, MenuItemSerializer, AddOnSerializer
 
@@ -95,6 +95,31 @@ class RestaurantViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+    
+
+    @action(detail=True, methods=['partial_update'], permission_classes=[IsRestaurantOwner])
+    def assign_driver(self, request, pk=None):
+        '''Assign a driver to a restaurant'''
+        restaurant = self.get_object()
+        if restaurant.owner != request.user:
+            return Response(
+                {'error': 'You can only assign drivers to your own restaurant.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        driver_number = request.data.get('driver_number')
+        try:
+            driver = restaurant.drivers.get(username=driver_number, role=3)
+        except:
+            return Response(
+                {'error': 'Driver not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        restaurant.drivers.add(driver)
+        restaurant.save()
+        return Response(
+            {'success': f'Driver {driver.username} assigned to restaurant {restaurant.name}.'},
+            status=status.HTTP_200_OK
+        )
     
 
 

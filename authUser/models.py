@@ -8,7 +8,7 @@ class User(AbstractUser):
         (2, 'Restaurant Owner'),
         (3, 'Driver'),
     )
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=1)
+    role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=1)
     phone_number = models.CharField(max_length=15, blank=True, null=True, unique=True)
 
     def __str__(self):

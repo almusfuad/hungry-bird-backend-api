@@ -2,12 +2,19 @@ from rest_framework import serializers
 from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
+    role_display = serializers.SerializerMethodField()
+
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'role', 'phone_number', 'password', 'first_name', 'last_name']
+        fields = ['id', 'username', 'role', 'phone_number', 'password', 'role_display', 'first_name', 'last_name']
         extra_kwargs = {
             'password': {'write_only': True},
         }
+
+
+    def get_role_display(self, obj):
+        return obj.get_role_display()
 
     def create(self, validated_data):
         password = validated_data.pop('password')

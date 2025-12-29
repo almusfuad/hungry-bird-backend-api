@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from .serializers import UserSerializer
+from rest_framework.exceptions import NotFound, ValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -76,3 +77,20 @@ class LogoutView(views.APIView):
         except Exception as e:
             return Response({'error': 'Invalid token or token has already been blacklisted'}, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+class UserQueryView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        user_id = self.request.query_params.get('id')
+        role = self.request.query_params.get('role')
+
+        if user_id:
+            return User.objects.filter(id=user_id)
+
+        if role:
+            return User.objects.filter(role=role)
+
+        return User.objects.filter(id=self.request.user.id)
