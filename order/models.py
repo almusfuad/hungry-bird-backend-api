@@ -5,6 +5,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from rest_framework.exceptions import PermissionDenied
 import json
+from notifications.dispatcher import OrderNotificationDispatcher
 
 # Create your models here.
 class Order(TimeStampedModel, LocationModel):
@@ -16,6 +17,15 @@ class Order(TimeStampedModel, LocationModel):
         (5, 'Delivered'),
         (6, 'Cancelled'),
     ]
+
+    STATUS_MESSAGES = {
+        1: "A new order is placed. Check details.",
+        2: "Chef is preparing your order. Hold tight!",
+        3: "An order is ready to delivered. Please pick it up.",
+        4: "Your order is on the way! Get ready to receive it.",
+        5: "Order delivered successfully. Thanks Chef!",
+        6: "Order is cancelled."
+    }
 
 
     customer = models.ForeignKey(
@@ -33,6 +43,12 @@ class Order(TimeStampedModel, LocationModel):
     status = models.IntegerField(choices=STATUS_CHOICES, default=1)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     delivery_address = models.TextField()
+
+    # Helpers
+    def get_status_message(self):
+        return self.STATUS_MESSAGES.get(
+            self.status, "Order status has been updated."
+        )
 
 
     # Domain Logic Methods
@@ -97,6 +113,9 @@ class Order(TimeStampedModel, LocationModel):
     
             # If order is cancelled, no further actions needed
             if new_status == 6:
+                transaction.on_commit(
+                    lambda: OrderNotificationDispatcher.dispatch(self)
+                )
                 return
 
             if new_status == 3 and not self.driver:  # Ready for Pickup by Owner
@@ -106,32 +125,22 @@ class Order(TimeStampedModel, LocationModel):
                     print(f"Assigned driver {driver.id} to order {self.id}")
                     self.save(update_fields=['driver'])
                     transaction.on_commit(
-                        lambda: self._notify_driver(driver)
+                        lambda: OrderNotificationDispatcher.dispatch(self)
                     )
+                    return
 
-
-    def _notify_driver(self, driver):
-        print(f"Notifying driver {driver.id} for order {self.id}")
-        channel = get_channel_layer()
-        if not channel:
-            return
-        
-        # Message payload
-        payload = {
-            "type": "delivery.request",
-            "order_id": int(self.id),
-            "pickup": self.get_pickup_location(),
-            "drop": self.get_delivery_location(),
-        }
-        async_to_sync(channel.group_send)(
-            f"driver_{driver.id}",
-            json.loads(json.dumps(payload))
-        )
+            # Always notify on status change
+            transaction.on_commit(
+                lambda: OrderNotificationDispatcher.dispatch(self)
+            )   
 
 
     def __str__(self):
         return f"Order #{self.id} by {self.customer.username}"
     
+
+
+
 
 
 class OrderItem(TimeStampedModel):
