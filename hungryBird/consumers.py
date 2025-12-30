@@ -7,6 +7,9 @@ class DriverConsumer(AsyncWebsocketConsumer):
         self.driver_id = self.scope['url_route']['kwargs']['driver_id']
         self.group_name = f"driver_{self.driver_id}"
 
+
+        print("WebSocket connected to group:", self.group_name)
+
         # Join driver group
         await self.channel_layer.group_add(
             self.group_name,

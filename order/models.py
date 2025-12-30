@@ -4,6 +4,7 @@ from django.utils import timezone
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from rest_framework.exceptions import PermissionDenied
+import json
 
 # Create your models here.
 class Order(TimeStampedModel, LocationModel):
@@ -42,14 +43,14 @@ class Order(TimeStampedModel, LocationModel):
     
     def get_pickup_location(self):
         return {
-            'pick_lat': self.restaurant.latitude,
-            'pick_lng': self.restaurant.longitude
+            'pick_lat': float(self.restaurant.latitude),
+            'pick_lng': float(self.restaurant.longitude)
         }
     
     def get_delivery_location(self):
         return {
-            'delivery_lat': self.latitude,
-            'delivery_lng': self.longitude
+            'delivery_lat': float(self.latitude),
+            'delivery_lng': float(self.longitude)
         }
     
     def get_order_total(self):
@@ -94,36 +95,44 @@ class Order(TimeStampedModel, LocationModel):
             self.status = new_status
             self.save(update_fields=['status', 'updated_at'])  
     
-        # If order is cancelled, no further actions needed
-        if new_status == 6:
-            return
+            # If order is cancelled, no further actions needed
+            if new_status == 6:
+                return
 
-        if new_status == 3 and not self.driver:  # Ready for Pickup by Owner
-            driver = self.restaurant.assign_driver(self)
-            if driver:
-                self.driver = driver
-                self.save(update_fields=['driver'])
-                self._notify_driver(driver)
+            if new_status == 3 and not self.driver:  # Ready for Pickup by Owner
+                driver = self.restaurant.assign_driver(self)
+                if driver:
+                    self.driver = driver
+                    print(f"Assigned driver {driver.id} to order {self.id}")
+                    self.save(update_fields=['driver'])
+                    transaction.on_commit(
+                        lambda: self._notify_driver(driver)
+                    )
 
 
     def _notify_driver(self, driver):
+        print(f"Notifying driver {driver.id} for order {self.id}")
         channel = get_channel_layer()
         if not channel:
             return
+        
+        # Message payload
+        payload = {
+            "type": "delivery.request",
+            "order_id": int(self.id),
+            "pickup": self.get_pickup_location(),
+            "drop": self.get_delivery_location(),
+        }
         async_to_sync(channel.group_send)(
             f"driver_{driver.id}",
-            {
-                'type': 'delivery.request',
-                'order_id': self.id,
-                'pickup': self.get_pickup_location(),
-                'drop': self.get_delivery_location(),
-            }
+            json.loads(json.dumps(payload))
         )
 
 
     def __str__(self):
         return f"Order #{self.id} by {self.customer.username}"
     
+
 
 class OrderItem(TimeStampedModel):
     order = models.ForeignKey('order.Order', on_delete=models.DO_NOTHING, related_name='order_items')
