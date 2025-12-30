@@ -108,6 +108,8 @@ class Order(TimeStampedModel, LocationModel):
 
     def _notify_driver(self, driver):
         channel = get_channel_layer()
+        if not channel:
+            return
         async_to_sync(channel.group_send)(
             f"driver_{driver.id}",
             {
