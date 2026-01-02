@@ -28,8 +28,21 @@ class Payment(TimeStampedModel):
     status = models.PositiveSmallIntegerField(choices=STATUS, default=0)
     transaction_id = models.CharField(max_length=255, blank=True, null=True)
 
+
+    def mark_completed(self, transaction_id):
+        if self.status != self.STATUS[1][0]:
+            raise ValueError("Payment already processed")
+        
+        self.transaction_id = transaction_id
+        self.status = self.STATUS[1][0]
+        self.save(update_fields=['transaction_id', 'status', 'updated_at'])
+
+
     def __str__(self):
         return f"Payment {self.id} - Order {self.order.id} - {self.get_status_display()}"
+    
+
+
     
 
 

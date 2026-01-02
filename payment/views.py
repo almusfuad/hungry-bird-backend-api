@@ -4,33 +4,30 @@ from rest_framework.response import Response
 import stripe
 from hungryBird.permissions import IsCustomer
 from order.models import Order
+from payment.models import Payment
+from hungryBird.settings import STRIPE_SECRET_KEY
+
+stripe.api_key = STRIPE_SECRET_KEY
+
+
 
 
 # Create your views here.
-class CompletePaymentView(APIView):
+class StripeWebhookView(APIView):
     permission_classes = [IsCustomer]
 
-    def patch(self, request, order_id):
-        try:
-            order = Order.objects.select_related(
-                'payment'
-            ).get(id=order_id, customer=request.user)
-            payment = order.payment
-            if payment.method == 1:
-                return Response({'detail': "Cash on Delivery does not require online payment."}, status=400)
-            elif payment.method == 2:
-                token = request.data.get('token')
-                charge = stripe.Charge.create(
-                    amount=int(payment.amount * 100),
-                    currency='usd',
-                    description=f'Order #{order.id}',
-                    source=token,
-                )
-                payment.stripe_charge_id = charge.id
-                payment.status = 1  # Completed
-                payment.save()
-            return Response({'detail': "Payment completed successfully."})
-        except Order.DoesNotExist:
-            return Response({'detail': "Order not found."}, status=404)
-        except stripe.error.StripeError as e:
-            return Response({'detail': str(e)}, status=400)
+    def post(self, request):
+        # Parse the event from Stripe
+        event = stripe.Event.construct_from(
+            request.data, stripe.api_key
+        )
+
+        # Handle the event
+        if event.type == 'charge.succeeded':
+            charge = event.data.object
+            payment = Payment.objects.get(transaction_id=charge.id)
+            payment.status = 1  # Completed
+            payment.save(update_fields=['status', 'updated_at'])
+
+
+        return Response(status=200)
