@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'authUser',
     'restaurant',
     'order',
+    'cart',
     'payment',
     'notifications',
 ]

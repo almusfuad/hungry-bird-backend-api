@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/v1/authUser/', include('authUser.urls')),
+    path('api/v1/cart/', include('cart.urls')),
     path('api/v1/', include('restaurant.urls')),
     path('api/v1/', include('order.urls')),
 ]
