@@ -7,9 +7,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import Cart, CartItem, CartAddOn
 from .serializers import (
-    CartSerializer, 
-    CartItemSerializer, 
-    CartAddOnSerializer, 
+    CartSerializer,
     AddCartItemSerializer, 
     AddCartAddonSerializer,
     UpdateQuantitySerializer
