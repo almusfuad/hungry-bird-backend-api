@@ -1,8 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from hungryBird.baseModels import LocationModel
 
 # Create your models here.
-class User(AbstractUser):
+class User(AbstractUser, LocationModel):
     ROLE_CHOICES = (
         (1, 'Customer'),
         (2, 'Restaurant Owner'),
@@ -10,6 +11,8 @@ class User(AbstractUser):
     )
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=1)
     phone_number = models.CharField(max_length=15, blank=True, null=True, unique=True)
+    image = models.ImageField(upload_to='user_images/', blank=True, null=True)
+
 
     def __str__(self):
         return self.username
