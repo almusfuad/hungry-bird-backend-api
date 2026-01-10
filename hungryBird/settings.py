@@ -122,12 +122,12 @@ else:
     # PostgreSQL or other database engines (e.g., AWS RDS)
     DATABASES = {
         'default': {
-            'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.sqlite3'),
-            'NAME': os.environ.get('DATABASE_NAME', 'hungry_bird_db'),
-            'USER': os.environ.get('DATABASE_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
-            'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
-            'PORT': os.environ.get('DATABASE_PORT', '5432'),
+            'ENGINE': os.environ.get('DATABASE_ENGINE'),
+            'NAME': os.environ.get('DATABASE_NAME'),
+            'USER': os.environ.get('DATABASE_USER'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD'),
+            'HOST': os.environ.get('DATABASE_HOST'),
+            'PORT': os.environ.get('DATABASE_PORT'),
         }
     }
 

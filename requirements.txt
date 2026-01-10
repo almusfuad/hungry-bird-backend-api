@@ -12,6 +12,7 @@ django-storages==1.14.6
 drf-yasg==1.21.11
 pillow==12.1.0
 prompt_toolkit==3.0.52
+psycopg==3.3.2
 psycopg2-binary==2.9.11
 PyJWT==2.10.1
 python-dotenv==1.2.1
