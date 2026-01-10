@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Restaurant, MenuItem, AddOn
 from django.contrib.auth import get_user_model
+from hungryBird.utils import validate_image_size
 
 
 User = get_user_model()
@@ -21,7 +22,26 @@ class MenuItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'category', 'description', 'price',  'is_available', 'restaurant_id', 'add_ons', ]
+        fields = ['id', 'name', 'category', 'description', 'price', 'image', 'is_available', 'restaurant_id', 'add_ons', 'created_at', 'updated_at']
+
+
+    def validate_image(self, value):
+        """
+        Validate image size. Max size: 1024KB (customizable via settings)
+        """
+        if not value:
+            return value
+        
+        # Validate image size (1024KB default)
+        validation_result = validate_image_size(value, max_size_kb=1024)
+        
+        if not validation_result['success']:
+            raise serializers.ValidationError(validation_result['message'])
+        
+        return value
+    
+
+    
 
 class RestaurantDriverSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,9 +54,22 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'address', 'latitude', 'longitude', 'menu_items', 'phone_number']
+        fields = ['id', 'name', 'address', 'latitude', 'longitude', 'phone_number', 'image', 'menu_items']
 
-
+    def validate_image(self, value):
+        """
+        Validate image size. Max size: 1024KB (customizable via settings)
+        """
+        if not value:
+            return value
+        
+        # Validate image size (1024KB default)
+        validation_result = validate_image_size(value, max_size_kb=1024)
+        
+        if not validation_result['success']:
+            raise serializers.ValidationError(validation_result['message'])
+        
+        return value
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -1,5 +1,7 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from hungryBird.baseModels import TimeStampedModel, LocationModel
+from hungryBird.utils import validate_image_size
 
 # Create your models here.
 class Restaurant(TimeStampedModel, LocationModel):
@@ -11,6 +13,7 @@ class Restaurant(TimeStampedModel, LocationModel):
     name = models.CharField(max_length=255)
     address = models.TextField()
     phone_number = models.CharField(max_length=15)
+    image = models.ImageField(upload_to='restaurant_images/', blank=True, null=True)
     drivers = models.ManyToManyField(
         'authUser.User',
         limit_choices_to={'role': 3},
@@ -32,6 +35,18 @@ class Restaurant(TimeStampedModel, LocationModel):
             order.save()
             return driver
         return None
+
+    def save(self, *args, **kwargs):
+        """
+        Override save method to validate image size before saving.
+        Max size: 500KB
+        """
+        if self.image:
+            validation_result = validate_image_size(self.image, max_size_kb=1024)
+            if not validation_result['success']:
+                raise ValidationError(f"Image validation failed: {validation_result['message']}")
+        
+        super().save(*args, **kwargs)
 
 
     def __str__(self):
@@ -68,8 +83,22 @@ class MenuItem(TimeStampedModel):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to='menu_item_images/', blank=True, null=True)
     price = models.DecimalField(max_digits=8, decimal_places=2)
     is_available = models.BooleanField(default=True)
+
+
+    def save(self, *args, **kwargs):
+        """
+        Override save method to validate image size before saving.
+        Max size: 1024KB
+        """
+        if self.image:
+            validation_result = validate_image_size(self.image, max_size_kb=1024)
+            if not validation_result['success']:
+                raise ValidationError(f"Image validation failed: {validation_result['message']}")
+        
+        super().save(*args, **kwargs)
 
 
     def __str__(self):

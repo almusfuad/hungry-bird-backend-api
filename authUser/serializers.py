@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import User
+from hungryBird.utils import validate_image_size
+from django.core.exceptions import ValidationError
 
 class UserSerializer(serializers.ModelSerializer):
     role_display = serializers.SerializerMethodField()
@@ -12,6 +14,17 @@ class UserSerializer(serializers.ModelSerializer):
             'password': {'write_only': True},
         }
 
+
+    def validate_image(self, value):
+        if not value:
+            return value
+        
+        # Validate image size (512KB default)
+        validation_result = validate_image_size(value, max_size_kb=512)
+        if not validation_result['success']:
+            raise serializers.ValidationError(validation_result['message'])
+        return value
+    
 
     def get_role_display(self, obj):
         return obj.get_role_display()
