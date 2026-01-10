@@ -43,11 +43,14 @@ class LoginView(generics.GenericAPIView):
     def post(self, request):
         phone_number = request.data.get('phone_number')
         password = request.data.get('password')
+        role = request.data.get('role')
 
         try:
             user = User.objects.get(username=phone_number)
             if not user.check_password(password):
                 return Response({'error': 'Invalid phone number or password'}, status=status.HTTP_400_BAD_REQUEST)
+            if role and user.role != int(role):
+                return Response({'error': 'User role does not match'}, status=status.HTTP_400_BAD_REQUEST)
             if not user.is_active:
                 return Response({'error': 'User account is disabled'}, status=status.HTTP_400_BAD_REQUEST) 
         except User.DoesNotExist:
@@ -55,11 +58,17 @@ class LoginView(generics.GenericAPIView):
             return Response({'error': 'Invalid phone number or password'}, status=status.HTTP_400_BAD_REQUEST)
         
         refresh = RefreshToken.for_user(user)
-        return Response({
+        response_data = {
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': UserSerializer(user).data
-        }, status=status.HTTP_200_OK)
+        }
+
+        if user.role == 2:
+            response_data['has_restaurant'] = 1 if user.has_restaurant() else 0
+
+        
+        return Response(response_data, status=status.HTTP_200_OK)
     
 
 

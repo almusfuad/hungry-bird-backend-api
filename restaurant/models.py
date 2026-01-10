@@ -5,14 +5,14 @@ from hungryBird.utils import validate_image_size
 
 # Create your models here.
 class Restaurant(TimeStampedModel, LocationModel):
-    owner = models.ForeignKey(
-        'authUser.User', on_delete=models.CASCADE,
+    owner = models.OneToOneField(
+        'authUser.User', on_delete=models.SET_NULL, blank=True, null=True,
         limit_choices_to={'role': 2},
-        related_name='restaurants'
+        related_name='restaurant'
     )
     name = models.CharField(max_length=255)
     address = models.TextField()
-    phone_number = models.CharField(max_length=15)
+    phone_number = models.CharField(max_length=15, unique=True, blank=True, null=True)
     image = models.ImageField(upload_to='restaurant_images/', blank=True, null=True)
     drivers = models.ManyToManyField(
         'authUser.User',
