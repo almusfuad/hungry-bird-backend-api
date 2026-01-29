@@ -7,9 +7,9 @@ class Payment(TimeStampedModel):
     METHOD_CHOICES = [
         (1, 'Cash on Delivery'),
         (2, 'Stripe'),
-        # (3, 'PayPal'),
-        # (4, 'Razorpay'),
-        # (5, 'Google Pay'),
+        (3, 'Cash'),  # POS only
+        (4, 'MFS'),   # POS only - Mobile Financial Service
+        (5, 'Card'),  # POS only
         # (6, 'Apple Pay'),
         # (7, 'Bank Transfer'),
         # (8, 'Cryptocurrency'),

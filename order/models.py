@@ -9,6 +9,11 @@ from notifications.dispatcher import OrderNotificationDispatcher
 
 # Create your models here.
 class Order(TimeStampedModel, LocationModel):
+    SOURCE_CHOICES = [
+        (1, 'Online'),
+        (2, 'POS'),
+    ]
+
     STATUS_CHOICES = [
         (1, 'Pending'),
         (2, 'Preparing'),
@@ -16,6 +21,7 @@ class Order(TimeStampedModel, LocationModel):
         (4, 'Out for Delivery'),
         (5, 'Delivered'),
         (6, 'Cancelled'),
+        (7, 'Completed'),  # POS orders only
     ]
 
     STATUS_MESSAGES = {
@@ -24,7 +30,8 @@ class Order(TimeStampedModel, LocationModel):
         3: "An order is ready to delivered. Please pick it up.",
         4: "Your order is on the way! Get ready to receive it.",
         5: "Order delivered successfully. Thanks Chef!",
-        6: "Order is cancelled."
+        6: "Order is cancelled.",
+        7: "POS order completed successfully."
     }
 
 
@@ -41,6 +48,7 @@ class Order(TimeStampedModel, LocationModel):
         null=True, blank=True
     )
     status = models.IntegerField(choices=STATUS_CHOICES, default=1)
+    order_source = models.IntegerField(choices=SOURCE_CHOICES, default=1)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     delivery_address = models.TextField()
 
@@ -49,6 +57,39 @@ class Order(TimeStampedModel, LocationModel):
         return self.STATUS_MESSAGES.get(
             self.status, "Order status has been updated."
         )
+
+    def is_pos(self):
+        """Check if order is from POS system"""
+        return self.order_source == 2
+
+    def clean(self):
+        """Model-level validation for order_source constraints"""
+        from django.core.exceptions import ValidationError
+        
+        # Validate order_source value
+        valid_sources = [choice[0] for choice in self.SOURCE_CHOICES]
+        if self.order_source not in valid_sources:
+            raise ValidationError({
+                'order_source': f'Invalid order source. Must be one of {valid_sources}.'
+            })
+        
+        # POS orders should not have delivery-related statuses
+        if self.is_pos() and self.status in [3, 4, 5]:  # Ready for Pickup, Out for Delivery, Delivered
+            raise ValidationError({
+                'status': 'POS orders cannot have delivery-related statuses (3, 4, 5).'
+            })
+        
+        # Online orders should not have POS Completed status
+        if not self.is_pos() and self.status == 7:
+            raise ValidationError({
+                'status': 'Only POS orders can have Completed status (7).'
+            })
+        
+        # POS orders should not have drivers assigned
+        if self.is_pos() and self.driver:
+            raise ValidationError({
+                'driver': 'POS orders cannot have drivers assigned.'
+            })
 
 
     # Domain Logic Methods
@@ -78,6 +119,15 @@ class Order(TimeStampedModel, LocationModel):
 
     # State Transitions
     def _allowed_transitions(self):
+        # POS orders have simplified transitions
+        if self.is_pos():
+            return {
+                2: {  # Restaurant Owner only
+                    1: [7, 6],  # Pending -> Completed or Cancelled
+                }
+            }
+        
+        # Online orders have full delivery workflow
         return {
             1: {
                 1: [6], # Customer can cancel
@@ -111,6 +161,11 @@ class Order(TimeStampedModel, LocationModel):
             self.status = new_status
             self.save(update_fields=['status', 'updated_at'])  
     
+            # POS orders: no driver assignment, no notifications
+            if self.is_pos():
+                return
+
+            # Online orders: handle driver assignment and notifications
             # If order is cancelled, no further actions needed
             if new_status == 6:
                 transaction.on_commit(
@@ -129,7 +184,7 @@ class Order(TimeStampedModel, LocationModel):
                     )
                     return
 
-            # Always notify on status change
+            # Always notify on status change for online orders
             transaction.on_commit(
                 lambda: OrderNotificationDispatcher.dispatch(self)
             )   

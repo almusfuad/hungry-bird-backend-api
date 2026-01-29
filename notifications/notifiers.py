@@ -7,6 +7,10 @@ class DriverNotifier(BaseNotifier):
 
 
     def notify(self):
+        # Skip notifications for POS orders
+        if self.order.is_pos():
+            return
+        
         if self.order.status not in self.TRIGGER_STATUS:
             return
         
@@ -31,6 +35,10 @@ class RestaurantNotifier(BaseNotifier):
     TRIGGER_STATUS = {1, 5, 6}
 
     def notify(self):
+        # Skip notifications for POS orders
+        if self.order.is_pos():
+            return
+        
         if self.order.status not in self.TRIGGER_STATUS:
             return
         
@@ -56,6 +64,10 @@ class CustomerNotifier(BaseNotifier):
 
 
     def notify(self):
+        # Skip notifications for POS orders
+        if self.order.is_pos():
+            return
+        
         if self.order.status not in self.TRIGGER_STATUS:
             return
         
