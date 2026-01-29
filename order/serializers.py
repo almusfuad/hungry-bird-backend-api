@@ -60,12 +60,53 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'customer', 'restaurant_id', 'status',
-            'status', 'total_price', 'delivery_address',
+            'id', 'customer', 'restaurant_id', 'status', 'order_source',
+            'total_price', 'delivery_address',
             'items', 'payment_method',
             'latitude', 'longitude', 'created_at'
         ]
         read_only_fields = ['id', 'total_price', 'customer', 'created_at']
+
+    def validate(self, data):
+        """
+        Validate order_source against user role and payment method
+        """
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required.")
+        
+        user = request.user
+        order_source = data.get('order_source', 1)  # Default to Online
+        payment_method = data.get('payment_method')
+        
+        # Validate role-based order creation
+        if order_source == 1:  # Online order
+            if int(user.role) != 1:  # Must be customer
+                raise serializers.ValidationError({
+                    'order_source': 'Online orders can only be created by customers.'
+                })
+            # Online orders use payment methods: 1 (COD), 2 (Stripe), 9 (Other)
+            if payment_method not in [1, 2, 9]:
+                raise serializers.ValidationError({
+                    'payment_method': 'Online orders must use Cash on Delivery, Stripe, or Other payment methods.'
+                })
+        
+        elif order_source == 2:  # POS order
+            if int(user.role) != 2:  # Must be restaurant owner
+                raise serializers.ValidationError({
+                    'order_source': 'POS orders can only be created by restaurant owners.'
+                })
+            # POS orders use payment methods: 3 (Cash), 4 (MFS), 5 (Card)
+            if payment_method not in [3, 4, 5]:
+                raise serializers.ValidationError({
+                    'payment_method': 'POS orders must use Cash, MFS, or Card payment methods.'
+                })
+        else:
+            raise serializers.ValidationError({
+                'order_source': 'Invalid order source. Must be 1 (Online) or 2 (POS).'
+            })
+        
+        return data
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -116,6 +157,9 @@ class OrderSerializer(serializers.ModelSerializer):
     # Custom representation to include nested details
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        
+        # Add order_source display
+        data['order_source_display'] = instance.get_order_source_display()
 
         # Restaurant details
         data['restaurant'] = {

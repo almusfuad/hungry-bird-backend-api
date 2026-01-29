@@ -16,7 +16,7 @@ class OrderViewSet(ModelViewSet):
 
 
     def get_permissions(self):
-        if self.action in ['create', 'destroy']:
+        if self.action == 'destroy':
             permission_classes = [IsCustomer]
         else:
             permission_classes = [IsAuthenticated]
@@ -24,24 +24,41 @@ class OrderViewSet(ModelViewSet):
     
 
     def perform_create(self, serializer):
-        if int(self.request.user.role) != 1:
+        user_role = int(self.request.user.role)
+        
+        # Allow both customers (role=1) and restaurant owners (role=2)
+        if user_role not in [1, 2]:
             return Response(
-                {'error': 'Only customers can place orders.'},
+                {'error': 'Only customers and restaurant owners can place orders.'},
                 status=status.HTTP_403_FORBIDDEN
             )
+        
         serializer.save()
 
 
     def get_queryset(self):
         user = self.request.user
+        queryset = Order.objects.none()
+        
         if hasattr(user, 'role'):
             if int(user.role) == 1:  # Customer
-                return Order.objects.filter(customer=user)
+                queryset = Order.objects.filter(customer=user)
             elif int(user.role) == 2:  # Restaurant Owner
-                return Order.objects.filter(restaurant__owner=user)
+                queryset = Order.objects.filter(restaurant__owner=user)
             elif int(user.role) == 3:  # Driver
-                return Order.objects.filter(driver=user)
-        return Order.objects.none()
+                queryset = Order.objects.filter(driver=user)
+        
+        # Filter by order source if provided in query params (?source=1 or ?source=2)
+        source = self.request.query_params.get('source', None)
+        if source:
+            try:
+                source = int(source)
+                if source in [1, 2]:  # Valid source values
+                    queryset = queryset.filter(order_source=source)
+            except (ValueError, TypeError):
+                pass  # Ignore invalid source values
+        
+        return queryset
     
 
     def partial_update(self, request, *args, **kwargs):
