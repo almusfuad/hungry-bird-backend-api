@@ -10,7 +10,8 @@ from .serializers import (
     CartSerializer,
     AddCartItemSerializer, 
     AddCartAddonSerializer,
-    UpdateQuantitySerializer
+    UpdateQuantitySerializer,
+    CheckoutSerializer
 )
 from hungryBird.permissions import IsCustomer
 
@@ -233,30 +234,77 @@ class CartViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def confirm(self, request, id=None):
+        """
+        Confirm cart and create order.
+        Expected payload:
+        {
+            "delivery_address": "123 Main St",
+            "payment_method": 1,  // 1=COD, 2=Stripe, 9=Other
+            "latitude": 23.75,    // Optional
+            "longitude": 90.39    // Optional
+        }
+        """
         cart = self.get_object()
 
-        delivery_address = request.data.get('delivery_address')
-        if not delivery_address:
-            return Response(
-                {'detail': 'delivery_address is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Validate checkout data
+        serializer = CheckoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
         try:
-            order = cart.confirm(delivery_address=delivery_address)
+            order = cart.confirm(
+                delivery_address=serializer.validated_data['delivery_address'],
+                payment_method=serializer.validated_data['payment_method'],
+                latitude=serializer.validated_data.get('latitude'),
+                longitude=serializer.validated_data.get('longitude')
+            )
         except DjangoValidationError as e:
             return Response(
-                {'detail': str(e.message)},
+                {'detail': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         return Response(
             {
                 "order_id": order.id,
+                "order_source": order.order_source,
+                "order_source_display": order.get_order_source_display(),
                 "total_price": str(order.total_price),
+                "payment_method": order.payment.method,
+                "payment_status": order.payment.get_status_display(),
                 "detail": "Order confirmed successfully."
             },
             status=status.HTTP_201_CREATED
         )
+    
+    @action(detail=True, methods=['get'])
+    def validate_checkout(self, request, id=None):
+        """
+        Validate if cart is ready for checkout.
+        Returns validation status and any issues.
+        """
+        cart = self.get_object()
+        
+        issues = []
+        
+        if not cart.is_active:
+            issues.append("Cart is not active.")
+        
+        if not cart.cart_items.exists():
+            issues.append("Cart is empty.")
+        
+        # Check if all items are still available
+        for item in cart.cart_items.select_related('menu_item'):
+            if not item.menu_item.is_available:
+                issues.append(f"{item.menu_item.name} is no longer available.")
+        
+        is_valid = len(issues) == 0
+        
+        return Response({
+            "is_valid": is_valid,
+            "issues": issues,
+            "cart_id": cart.id,
+            "total_price": str(cart.get_total_price()),
+            "items_count": cart.get_items_count()
+        })
         
 

@@ -71,26 +71,38 @@ class Cart(TimeStampedModel):
             item.save()
 
 
-    def confirm(self, delivery_address):
+    def confirm(self, delivery_address, payment_method, latitude=None, longitude=None):
         """
-        Convert cart to order. This will:
-        1. Create an Order from the cart
+        Convert cart to online order with payment. This will:
+        1. Create an Order from the cart with order_source=1 (Online)
         2. Clone CartItems to OrderItems
         3. Clone CartAddOns to OrderAddOns
-        4. Deactivate the cart
+        4. Create Payment record
+        5. Deactivate the cart
         """
         if not self.is_active:
             raise ValidationError("Cannot confirm an inactive cart.")
         if not self.cart_items.exists():
             raise ValidationError("Cannot confirm an empty cart.")
         
+        # Validate payment method for online orders
+        ONLINE_PAYMENT_METHODS = [1, 2, 9]  # COD, Stripe, Other
+        if payment_method not in ONLINE_PAYMENT_METHODS:
+            raise ValidationError(
+                "Online orders must use Cash on Delivery or Stripe payment methods."
+            )
 
         with transaction.atomic():
+            from payment.models import Payment
+            
             order = Order.objects.create(
                 customer = self.customer,
                 restaurant = self.restaurant,
                 delivery_address = delivery_address,
-                total_price = self.get_total_price()
+                order_source = 1,  # Online order
+                total_price = self.get_total_price(),
+                latitude = latitude,
+                longitude = longitude
             )
 
             for cart_item in self.cart_items.select_related("menu_item"):
@@ -109,6 +121,14 @@ class Cart(TimeStampedModel):
                     )
                     for addon in cart_item.cart_add_ons.all()
                 ])
+
+            # Create payment record
+            Payment.objects.create(
+                order = order,
+                method = payment_method,
+                amount = order.total_price,
+                status = 0  # Pending
+            )
 
             self.is_active = False
             self.save(update_fields=['is_active'])
@@ -201,10 +221,10 @@ class CartAddOn(TimeStampedModel):
         unique_together = ('cart_item', 'add_on')
 
     def clean(self):
-        """Validate that add-on belongs to the same menu item"""
-        if self.add_on.menu_item != self.cart_item.menu_item:
+        """Validate that add-on belongs to the same restaurant"""
+        if self.add_on.menu_item.restaurant != self.cart_item.cart.restaurant:
             raise ValidationError(
-                "Add-on does not belong to this menu item."
+                "Add-on does not belong to this restaurant."
             )
 
     def save(self, *args, **kwargs):

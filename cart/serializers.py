@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Cart, CartItem, CartAddOn
 from restaurant.models import MenuItem, AddOn
+from payment.models import Payment
 
 
 class AddCartItemSerializer(serializers.Serializer):
@@ -135,3 +136,47 @@ class CartSerializer(serializers.ModelSerializer):
 
     def get_items_count(self, obj):
         return obj.get_items_count()
+
+
+class CheckoutSerializer(serializers.Serializer):
+    """Serializer for cart checkout/confirmation"""
+    delivery_address = serializers.CharField(
+        max_length=500,
+        required=True,
+        error_messages={
+            'required': 'Delivery address is required for checkout.'
+        }
+    )
+    payment_method = serializers.ChoiceField(
+        choices=Payment.METHOD_CHOICES,
+        required=True,
+        error_messages={
+            'required': 'Payment method is required for checkout.'
+        }
+    )
+    latitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        allow_null=True
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        allow_null=True
+    )
+    
+    def validate_payment_method(self, value):
+        """Validate payment method is valid for online orders"""
+        ONLINE_PAYMENT_METHODS = [1, 2, 9]  # COD, Stripe, Other
+        if value not in ONLINE_PAYMENT_METHODS:
+            raise serializers.ValidationError(
+                f"Invalid payment method. Online orders accept: "
+                f"1 (Cash on Delivery), 2 (Stripe), or 9 (Other)."
+            )
+        return value
+    
+    def validate(self, data):
+        """Additional cross-field validation if needed"""
+        return data

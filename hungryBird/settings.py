@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'cart',
     'payment',
     'notifications',
+    'driver',
 ]
 
 MIDDLEWARE = [
@@ -57,6 +58,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'hungryBird.urls'
 AUTH_USER_MODEL = 'authUser.User'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
