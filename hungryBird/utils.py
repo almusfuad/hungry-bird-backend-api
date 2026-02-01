@@ -285,3 +285,113 @@ def validate_image_complete(image_file, max_size_kb=200, allowed_formats=None,
         'message': 'All image validations passed',
         'validations': validations
     }
+
+
+# ============================================================================
+# DISTANCE CALCULATION UTILITIES (Haversine Formula)
+# ============================================================================
+
+import math
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great-circle distance between two points on Earth using the Haversine formula.
+    
+    Args:
+        lat1 (float): Latitude of first point in decimal degrees
+        lon1 (float): Longitude of first point in decimal degrees
+        lat2 (float): Latitude of second point in decimal degrees
+        lon2 (float): Longitude of second point in decimal degrees
+    
+    Returns:
+        float: Distance in kilometers
+    
+    Example:
+        >>> # Distance from New York to Los Angeles
+        >>> distance = calculate_distance(40.7128, -74.0060, 34.0522, -118.2437)
+        >>> print(f"{distance:.2f} km")
+        3936.31 km
+    
+    Reference:
+        Haversine formula: a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
+        c = 2 ⋅ atan2(√a, √(1−a))
+        d = R ⋅ c
+        where φ is latitude, λ is longitude, R is earth's radius (6371km)
+    """
+    # Earth's radius in kilometers
+    R = 6371.0
+    
+    # Convert latitude and longitude from degrees to radians
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+    
+    # Differences in coordinates
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+    
+    # Haversine formula
+    a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    # Distance in kilometers
+    distance = R * c
+    
+    return distance
+
+
+def filter_drivers_by_radius(drivers_qs, target_lat, target_lon, max_radius_km):
+    """
+    Filter a queryset of drivers to only include those within a specified radius of a target location.
+    
+    Args:
+        drivers_qs: Django QuerySet of User objects (role=3) with driver_profile
+        target_lat (float): Target latitude in decimal degrees
+        target_lon (float): Target longitude in decimal degrees
+        max_radius_km (float): Maximum radius in kilometers
+    
+    Returns:
+        list: List of tuples (driver_user, distance_km) sorted by distance (nearest first)
+    
+    Example:
+        >>> from django.contrib.auth import get_user_model
+        >>> User = get_user_model()
+        >>> available_drivers = User.objects.filter(role=3, current_availability__status=1)
+        >>> restaurant_lat, restaurant_lon = 40.7128, -74.0060
+        >>> nearby = filter_drivers_by_radius(available_drivers, restaurant_lat, restaurant_lon, max_radius_km=10)
+        >>> for driver, distance in nearby:
+        >>>     print(f"{driver.username}: {distance:.2f} km away")
+    
+    Note:
+        - Assumes drivers have driver_profile with latitude/longitude fields
+        - Returns empty list if target coordinates are None/invalid
+        - Filters out drivers without valid location data
+    """
+    if target_lat is None or target_lon is None:
+        return []
+    
+    drivers_with_distance = []
+    
+    for driver in drivers_qs.select_related('driver_profile'):
+        # Skip drivers without profile or location data
+        if not hasattr(driver, 'driver_profile'):
+            continue
+        
+        driver_lat = driver.driver_profile.latitude
+        driver_lon = driver.driver_profile.longitude
+        
+        if driver_lat is None or driver_lon is None:
+            continue
+        
+        # Calculate distance
+        distance = calculate_distance(target_lat, target_lon, driver_lat, driver_lon)
+        
+        # Only include if within radius
+        if distance <= max_radius_km:
+            drivers_with_distance.append((driver, distance))
+    
+    # Sort by distance (nearest first)
+    drivers_with_distance.sort(key=lambda x: x[1])
+    
+    return drivers_with_distance
