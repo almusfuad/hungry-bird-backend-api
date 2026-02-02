@@ -79,29 +79,6 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Validate ranges
-        try:
-            latitude = float(latitude)
-            longitude = float(longitude)
-            
-            if not (-90 <= latitude <= 90):
-                return Response(
-                    {'error': 'Latitude must be between -90 and 90.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            if not (-180 <= longitude <= 180):
-                return Response(
-                    {'error': 'Longitude must be between -180 and 180.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-        except (ValueError, TypeError):
-            return Response(
-                {'error': 'Invalid latitude or longitude format.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
         profile.latitude = latitude
         profile.longitude = longitude
         profile.save()
