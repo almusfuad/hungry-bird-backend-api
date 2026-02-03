@@ -16,6 +16,7 @@ urlpatterns = [
     path('api/v1/', include('restaurant.urls')),
     path('api/v1/', include('order.urls')),
     path('api/v1/driver/', include('driver.urls')),
+    path('api/v1/', include('review.urls')),
 ]
 
 # Serve media files during development
