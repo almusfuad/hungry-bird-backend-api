@@ -9,7 +9,7 @@ from decimal import Decimal
 from review.models import Review
 from review.serializers import ReviewSerializer
 from hungryBird.permissions import IsCustomer
-from notifications.dispatcher import dispatch_notification
+from notifications.dispatchers import ReviewNotificationDispatcher
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
@@ -132,23 +132,10 @@ class ReviewViewSet(viewsets.ModelViewSet):
         """
         instance = serializer.save(customer=self.request.user)
         
-        # Dispatch notification if owner has notifications enabled
-        def send_notification():
-            if instance.restaurant.owner and instance.restaurant.owner.enable_review_notifications:
-                dispatch_notification(
-                    type='new_review',
-                    recipient=instance.restaurant.owner,
-                    data={
-                        'message': f'New review received for {instance.menu_item.name if instance.menu_item else instance.restaurant.name}',
-                        'review_id': instance.id,
-                        'restaurant_id': instance.restaurant.id,
-                        'menu_item_id': instance.menu_item.id if instance.menu_item else None,
-                        'rating': str(instance.rating),
-                        'customer_name': instance.get_display_name()
-                    }
-                )
-        
-        transaction.on_commit(send_notification)
+        # Dispatch notification to restaurant owner
+        transaction.on_commit(
+            lambda: ReviewNotificationDispatcher.dispatch_new_review(instance)
+        )
 
     def perform_destroy(self, instance):
         """

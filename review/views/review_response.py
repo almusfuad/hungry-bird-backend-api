@@ -5,7 +5,7 @@ from django.db import transaction
 from review.models import ReviewResponse
 from review.serializers import ReviewResponseSerializer
 from hungryBird.permissions import IsRestaurantOwner
-from notifications.dispatcher import dispatch_notification
+from notifications.dispatchers import ReviewNotificationDispatcher
 
 
 class ReviewResponseViewSet(viewsets.ModelViewSet):
@@ -43,19 +43,7 @@ class ReviewResponseViewSet(viewsets.ModelViewSet):
         """
         instance = serializer.save(owner=self.request.user)
         
-        # Dispatch notification if customer has notifications enabled
-        def send_notification():
-            if instance.review.customer and instance.review.customer.enable_review_notifications:
-                dispatch_notification(
-                    type='review_response',
-                    recipient=instance.review.customer,
-                    data={
-                        'message': f'{instance.review.restaurant.name} responded to your review',
-                        'review_id': instance.review.id,
-                        'restaurant_id': instance.review.restaurant.id,
-                        'restaurant_name': instance.review.restaurant.name,
-                        'menu_item_id': instance.review.menu_item.id if instance.review.menu_item else None
-                    }
-                )
-        
-        transaction.on_commit(send_notification)
+        # Dispatch notification to customer
+        transaction.on_commit(
+            lambda: ReviewNotificationDispatcher.dispatch_review_response(instance)
+        )

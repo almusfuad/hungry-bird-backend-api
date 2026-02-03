@@ -5,7 +5,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from rest_framework.exceptions import PermissionDenied
 import json
-from notifications.dispatcher import OrderNotificationDispatcher
+from notifications.dispatchers import OrderNotificationDispatcher
 
 # Create your models here.
 class Order(TimeStampedModel, LocationModel):
