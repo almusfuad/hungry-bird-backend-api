@@ -16,6 +16,7 @@ class User(AbstractUser, LocationModel):
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=1)
     phone_number = models.CharField(max_length=15, blank=True, null=True, unique=True)
     image = models.ImageField(upload_to='user_images/', blank=True, null=True)
+    enable_review_notifications = models.BooleanField(default=True)
 
 
     # Group reverse accessor

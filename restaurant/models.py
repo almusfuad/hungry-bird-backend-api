@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.db.models import Avg, Count
+from decimal import Decimal
 from hungryBird.baseModels import TimeStampedModel, LocationModel
 from hungryBird.utils import validate_image_size
 
@@ -48,6 +50,65 @@ class Restaurant(TimeStampedModel, LocationModel):
         
         super().save(*args, **kwargs)
 
+
+    def get_average_rating(self):
+        """
+        Calculate average rating for restaurant-level reviews (not menu items).
+        Returns Decimal or None.
+        """
+        result = self.reviews.filter(
+            is_active=True,
+            menu_item__isnull=True
+        ).aggregate(avg=Avg('rating'))
+        return result['avg']
+
+    def get_total_reviews(self):
+        """
+        Get total count of active restaurant-level reviews.
+        """
+        return self.reviews.filter(
+            is_active=True,
+            menu_item__isnull=True
+        ).count()
+
+    def get_rating_breakdown(self):
+        """
+        Get rating breakdown showing count for each rating level (1-5).
+        Returns dict: {5: count, 4: count, 3: count, 2: count, 1: count}
+        """
+        reviews = self.reviews.filter(
+            is_active=True,
+            menu_item__isnull=True
+        ).values('rating').annotate(count=Count('id')).order_by('rating')
+        
+        # Initialize all ratings to 0
+        breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+        
+        # Group ratings by whole number (floor)
+        for item in reviews:
+            rating = int(item['rating'])  # Convert to int to group (4.5 -> 4, 4.2 -> 4)
+            if rating in breakdown:
+                breakdown[rating] += item['count']
+        
+        return breakdown
+
+    @property
+    def average_rating(self):
+        """
+        Property to get average rating rounded to 2 decimal places.
+        Returns Decimal('0.00') if no reviews.
+        """
+        avg = self.get_average_rating()
+        if avg is None:
+            return Decimal('0.00')
+        return round(Decimal(str(avg)), 2)
+
+    @property
+    def total_reviews(self):
+        """
+        Property to get total review count.
+        """
+        return self.get_total_reviews()
 
     def __str__(self):
         return self.name
@@ -100,6 +161,58 @@ class MenuItem(TimeStampedModel):
         
         super().save(*args, **kwargs)
 
+
+    def get_average_rating(self):
+        """
+        Calculate average rating for this menu item.
+        Returns Decimal or None.
+        """
+        result = self.reviews.filter(is_active=True).aggregate(avg=Avg('rating'))
+        return result['avg']
+
+    def get_total_reviews(self):
+        """
+        Get total count of active reviews for this menu item.
+        """
+        return self.reviews.filter(is_active=True).count()
+
+    def get_rating_breakdown(self):
+        """
+        Get rating breakdown showing count for each rating level (1-5).
+        Returns dict: {5: count, 4: count, 3: count, 2: count, 1: count}
+        """
+        reviews = self.reviews.filter(
+            is_active=True
+        ).values('rating').annotate(count=Count('id')).order_by('rating')
+        
+        # Initialize all ratings to 0
+        breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+        
+        # Group ratings by whole number (floor)
+        for item in reviews:
+            rating = int(item['rating'])  # Convert to int to group (4.5 -> 4, 4.2 -> 4)
+            if rating in breakdown:
+                breakdown[rating] += item['count']
+        
+        return breakdown
+
+    @property
+    def average_rating(self):
+        """
+        Property to get average rating rounded to 2 decimal places.
+        Returns Decimal('0.00') if no reviews.
+        """
+        avg = self.get_average_rating()
+        if avg is None:
+            return Decimal('0.00')
+        return round(Decimal(str(avg)), 2)
+
+    @property
+    def total_reviews(self):
+        """
+        Property to get total review count.
+        """
+        return self.get_total_reviews()
 
     def __str__(self):
         return f"{self.name} - {self.restaurant.name}"
