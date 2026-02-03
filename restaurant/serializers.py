@@ -19,10 +19,12 @@ class MenuItemSerializer(serializers.ModelSerializer):
         source='restaurant',
         read_only = True
     )
+    average_rating = serializers.SerializerMethodField()
+    total_reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'category', 'description', 'price', 'image', 'is_available', 'restaurant_id', 'add_ons', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'category', 'description', 'price', 'image', 'is_available', 'restaurant_id', 'add_ons', 'average_rating', 'total_reviews', 'created_at', 'updated_at']
 
 
     def validate_image(self, value):
@@ -39,6 +41,18 @@ class MenuItemSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(validation_result['message'])
         
         return value
+
+    def get_average_rating(self, obj):
+        """
+        Get average rating for the menu item.
+        """
+        return float(obj.average_rating) if obj.average_rating else 0.00
+
+    def get_total_reviews(self, obj):
+        """
+        Get total number of reviews for the menu item.
+        """
+        return obj.total_reviews
     
 
     
@@ -51,10 +65,12 @@ class RestaurantDriverSerializer(serializers.ModelSerializer):
 
 class RestaurantSerializer(serializers.ModelSerializer):
     menu_items = MenuItemSerializer(many=True, read_only=True)
+    average_rating = serializers.SerializerMethodField()
+    total_reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'address', 'latitude', 'longitude', 'phone_number', 'image', 'menu_items']
+        fields = ['id', 'name', 'address', 'latitude', 'longitude', 'phone_number', 'image', 'menu_items', 'average_rating', 'total_reviews']
 
     def validate_image(self, value):
         """
@@ -70,6 +86,18 @@ class RestaurantSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(validation_result['message'])
         
         return value
+
+    def get_average_rating(self, obj):
+        """
+        Get average rating for the restaurant.
+        """
+        return float(obj.average_rating) if obj.average_rating else 0.00
+
+    def get_total_reviews(self, obj):
+        """
+        Get total number of reviews for the restaurant.
+        """
+        return obj.total_reviews
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
