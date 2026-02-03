@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from review.models import Review
 from review.serializers.review_response import ReviewResponseSerializer
+# Import models at module level to avoid circular imports
+from order.models import Order
+from restaurant.models import Restaurant, MenuItem
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -18,20 +21,20 @@ class ReviewSerializer(serializers.ModelSerializer):
     # Write-only fields for creating/updating
     order_id = serializers.PrimaryKeyRelatedField(
         source='order',
-        queryset=None,  # Will be set in __init__
-        write_only=True
+        write_only=True,
+        queryset=Order.objects.all()
     )
     restaurant_id = serializers.PrimaryKeyRelatedField(
         source='restaurant',
-        queryset=None,  # Will be set in __init__
-        write_only=True
+        write_only=True,
+        queryset=Restaurant.objects.all()
     )
     menu_item_id = serializers.PrimaryKeyRelatedField(
         source='menu_item',
-        queryset=None,  # Will be set in __init__
         write_only=True,
         required=False,
-        allow_null=True
+        allow_null=True,
+        queryset=MenuItem.objects.all()
     )
     
     # Read-only nested fields
@@ -65,20 +68,6 @@ class ReviewSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-
-    def __init__(self, *args, **kwargs):
-        """
-        Initialize queryset for related fields dynamically.
-        """
-        super().__init__(*args, **kwargs)
-        
-        # Import here to avoid circular imports
-        from order.models import Order
-        from restaurant.models import Restaurant, MenuItem
-        
-        self.fields['order_id'].queryset = Order.objects.all()
-        self.fields['restaurant_id'].queryset = Restaurant.objects.filter(is_active=True)
-        self.fields['menu_item_id'].queryset = MenuItem.objects.filter(is_active=True)
 
     def get_customer_name(self, obj):
         """
