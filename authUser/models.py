@@ -17,6 +17,12 @@ class User(AbstractUser, LocationModel):
     phone_number = models.CharField(max_length=15, blank=True, null=True, unique=True)
     image = models.ImageField(upload_to='user_images/', blank=True, null=True)
     enable_review_notifications = models.BooleanField(default=True)
+    stripe_customer_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Stripe customer ID for subscription billing"
+    )
 
 
     # Group reverse accessor
