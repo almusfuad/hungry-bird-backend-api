@@ -11,6 +11,7 @@ from subscriptions.serializers import (
     UserSubscriptionUpgradeSerializer,
     UserSubscriptionFeatureSerializer
 )
+from subscriptions.dispatchers import SubscriptionNotificationDispatcher
 from payment.subscription import SubscriptionService
 import logging
 
@@ -127,6 +128,10 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
                         f"with Stripe subscription {stripe_subscription['id']}"
                     )
                 
+                # Dispatch subscription created notification
+                dispatcher = SubscriptionNotificationDispatcher()
+                dispatcher.dispatch_subscription_created(subscription)
+                
                 # Return subscription data
                 response_serializer = UserSubscriptionSerializer(subscription)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -221,6 +226,10 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
                         f"Upgraded user {request.user.id} from {old_plan} to {new_plan.name}"
                     )
                 
+                # Dispatch subscription upgraded notification
+                dispatcher = SubscriptionNotificationDispatcher()
+                dispatcher.dispatch_subscription_upgraded(subscription, old_plan)
+                
                 # Return updated subscription
                 response_serializer = UserSubscriptionSerializer(subscription)
                 return Response(response_serializer.data)
@@ -268,6 +277,10 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
             subscription.save()
             
             logger.info(f"Cancelled subscription {subscription.id} for user {request.user.id}")
+            
+            # Dispatch subscription cancelled notification
+            dispatcher = SubscriptionNotificationDispatcher()
+            dispatcher.dispatch_subscription_cancelled(subscription)
             
             # Return updated subscription
             response_serializer = UserSubscriptionSerializer(subscription)
