@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .swagger import schema_view
+from payment.views import subscription_webhook_handler
 
 
 urlpatterns = [
@@ -17,6 +18,8 @@ urlpatterns = [
     path('api/v1/', include('order.urls')),
     path('api/v1/driver/', include('driver.urls')),
     path('api/v1/', include('review.urls')),
+    path('api/v1/subscriptions/', include('subscriptions.urls')),
+    path('api/v1/payment/webhooks/subscription/', subscription_webhook_handler, name='subscription-webhook'),
 ]
 
 # Serve media files during development
