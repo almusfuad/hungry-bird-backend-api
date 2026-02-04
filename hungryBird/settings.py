@@ -250,6 +250,23 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'True').lower() in ('true', '1', 'yes')
 CELERY_TASK_EAGER_PROPAGATES = True
 
+# Celery Beat Schedule for Subscription Management
+CELERY_BEAT_SCHEDULE = {
+    'check-expired-subscriptions': {
+        'task': 'subscriptions.tasks.check_expired_subscriptions',
+        'schedule': 86400.0,  # Daily (24 hours in seconds)
+        # Alternative using crontab: 'schedule': crontab(hour=0, minute=0),
+    },
+    'send-renewal-reminders': {
+        'task': 'subscriptions.tasks.send_renewal_reminders',
+        'schedule': 86400.0,  # Daily
+    },
+    'sync-stripe-status': {
+        'task': 'subscriptions.tasks.sync_stripe_status',
+        'schedule': 21600.0,  # Every 6 hours
+    },
+}
+
 # ============================================================
 # CORS Configuration
 # ============================================================
