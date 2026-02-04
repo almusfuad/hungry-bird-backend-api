@@ -71,7 +71,7 @@ def subscription_webhook_handler(request):
                           'invoice.payment_failed', 'invoice.payment_succeeded']:
             # Import here to avoid circular imports
             from subscriptions.models import UserSubscription
-            from subscriptions.tasks import sync_stripe_status, handle_failed_payment
+            from subscriptions.tasks.sync import sync_stripe_status, handle_failed_payment
             from django.utils import timezone
             
             data_object = event['data']['object']

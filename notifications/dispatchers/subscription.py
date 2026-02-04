@@ -10,7 +10,8 @@ class SubscriptionNotificationDispatcher:
     Ensures notifications are sent after database commits.
     """
     
-    def dispatch_subscription_created(self, subscription):
+    @classmethod
+    def dispatch_subscription_created(cls, subscription):
         """
         Dispatch notification when a new subscription is created.
         
@@ -19,7 +20,7 @@ class SubscriptionNotificationDispatcher:
         """
         def send_notification():
             try:
-                from subscriptions.notifiers import SubscriptionNotifier
+                from notifications.notifiers.subscription import SubscriptionNotifier
                 notifier = SubscriptionNotifier()
                 notifier.notify_subscription_change(
                     user_id=subscription.user.id,
@@ -36,7 +37,8 @@ class SubscriptionNotificationDispatcher:
         
         transaction.on_commit(send_notification)
     
-    def dispatch_subscription_expired(self, subscription):
+    @classmethod
+    def dispatch_subscription_expired(cls, subscription):
         """
         Dispatch notification when subscription expires.
         
@@ -45,7 +47,7 @@ class SubscriptionNotificationDispatcher:
         """
         def send_notification():
             try:
-                from subscriptions.notifiers import SubscriptionNotifier
+                from notifications.notifiers.subscription import SubscriptionNotifier
                 notifier = SubscriptionNotifier()
                 notifier.notify_subscription_change(
                     user_id=subscription.user.id,
@@ -62,7 +64,8 @@ class SubscriptionNotificationDispatcher:
         
         transaction.on_commit(send_notification)
     
-    def dispatch_payment_failed(self, subscription):
+    @classmethod
+    def dispatch_payment_failed(cls, subscription):
         """
         Dispatch notification when payment fails.
         
@@ -71,7 +74,7 @@ class SubscriptionNotificationDispatcher:
         """
         def send_notification():
             try:
-                from subscriptions.notifiers import SubscriptionNotifier
+                from notifications.notifiers.subscription import SubscriptionNotifier
                 notifier = SubscriptionNotifier()
                 
                 grace_days = subscription.plan.grace_period_days
@@ -91,7 +94,8 @@ class SubscriptionNotificationDispatcher:
         
         transaction.on_commit(send_notification)
     
-    def dispatch_renewal_reminder(self, subscription):
+    @classmethod
+    def dispatch_renewal_reminder(cls, subscription):
         """
         Dispatch reminder notification before subscription renewal.
         
@@ -100,7 +104,7 @@ class SubscriptionNotificationDispatcher:
         """
         def send_notification():
             try:
-                from subscriptions.notifiers import SubscriptionNotifier
+                from notifications.notifiers.subscription import SubscriptionNotifier
                 notifier = SubscriptionNotifier()
                 
                 days_remaining = subscription.days_remaining()
@@ -121,7 +125,8 @@ class SubscriptionNotificationDispatcher:
         
         transaction.on_commit(send_notification)
     
-    def dispatch_subscription_upgraded(self, subscription, old_plan_name):
+    @classmethod
+    def dispatch_subscription_upgraded(cls, subscription, old_plan_name):
         """
         Dispatch notification when subscription is upgraded.
         
@@ -131,7 +136,7 @@ class SubscriptionNotificationDispatcher:
         """
         def send_notification():
             try:
-                from subscriptions.notifiers import SubscriptionNotifier
+                from notifications.notifiers.subscription import SubscriptionNotifier
                 notifier = SubscriptionNotifier()
                 notifier.notify_subscription_change(
                     user_id=subscription.user.id,
@@ -149,7 +154,8 @@ class SubscriptionNotificationDispatcher:
         
         transaction.on_commit(send_notification)
     
-    def dispatch_subscription_cancelled(self, subscription):
+    @classmethod
+    def dispatch_subscription_cancelled(cls, subscription):
         """
         Dispatch notification when subscription is cancelled.
         
@@ -158,7 +164,7 @@ class SubscriptionNotificationDispatcher:
         """
         def send_notification():
             try:
-                from subscriptions.notifiers import SubscriptionNotifier
+                from notifications.notifiers.subscription import SubscriptionNotifier
                 notifier = SubscriptionNotifier()
                 
                 message = f'Your {subscription.plan.name} subscription has been cancelled.'

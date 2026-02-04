@@ -11,7 +11,7 @@ from subscriptions.serializers import (
     UserSubscriptionUpgradeSerializer,
     UserSubscriptionFeatureSerializer
 )
-from subscriptions.dispatchers import SubscriptionNotificationDispatcher
+from notifications.dispatchers.subscription import SubscriptionNotificationDispatcher
 from payment.subscription import SubscriptionService
 import logging
 
@@ -129,8 +129,7 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
                     )
                 
                 # Dispatch subscription created notification
-                dispatcher = SubscriptionNotificationDispatcher()
-                dispatcher.dispatch_subscription_created(subscription)
+                SubscriptionNotificationDispatcher.dispatch_subscription_created(subscription)
                 
                 # Return subscription data
                 response_serializer = UserSubscriptionSerializer(subscription)
@@ -227,8 +226,7 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
                     )
                 
                 # Dispatch subscription upgraded notification
-                dispatcher = SubscriptionNotificationDispatcher()
-                dispatcher.dispatch_subscription_upgraded(subscription, old_plan)
+                SubscriptionNotificationDispatcher.dispatch_subscription_upgraded(subscription, old_plan)
                 
                 # Return updated subscription
                 response_serializer = UserSubscriptionSerializer(subscription)
@@ -279,8 +277,7 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
             logger.info(f"Cancelled subscription {subscription.id} for user {request.user.id}")
             
             # Dispatch subscription cancelled notification
-            dispatcher = SubscriptionNotificationDispatcher()
-            dispatcher.dispatch_subscription_cancelled(subscription)
+            SubscriptionNotificationDispatcher.dispatch_subscription_cancelled(subscription)
             
             # Return updated subscription
             response_serializer = UserSubscriptionSerializer(subscription)

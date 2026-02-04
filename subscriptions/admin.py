@@ -226,7 +226,7 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         """
         # Import here to avoid circular imports
         try:
-            from subscriptions.tasks import sync_stripe_status
+            from subscriptions.tasks.sync import sync_stripe_status
             
             synced_count = 0
             for subscription in queryset:

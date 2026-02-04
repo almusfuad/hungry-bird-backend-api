@@ -253,16 +253,16 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # Celery Beat Schedule for Subscription Management
 CELERY_BEAT_SCHEDULE = {
     'check-expired-subscriptions': {
-        'task': 'subscriptions.tasks.check_expired_subscriptions',
+        'task': 'subscriptions.tasks.expiration.check_expired_subscriptions',
         'schedule': 86400.0,  # Daily (24 hours in seconds)
         # Alternative using crontab: 'schedule': crontab(hour=0, minute=0),
     },
     'send-renewal-reminders': {
-        'task': 'subscriptions.tasks.send_renewal_reminders',
+        'task': 'subscriptions.tasks.notifications.send_renewal_reminders',
         'schedule': 86400.0,  # Daily
     },
     'sync-stripe-status': {
-        'task': 'subscriptions.tasks.sync_stripe_status',
+        'task': 'subscriptions.tasks.sync.sync_stripe_status',
         'schedule': 21600.0,  # Every 6 hours
     },
 }

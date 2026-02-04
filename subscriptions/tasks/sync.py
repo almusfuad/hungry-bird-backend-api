@@ -1,127 +1,9 @@
 from celery import shared_task
 from django.utils import timezone
-from datetime import timedelta
 from django.db import transaction
 import logging
 
 logger = logging.getLogger('subscriptions')
-
-
-@shared_task(bind=True, max_retries=3)
-def check_expired_subscriptions(self):
-    """
-    Check and expire subscriptions that have passed their grace period.
-    Runs daily to downgrade expired subscriptions to Free plan.
-    
-    Returns:
-        dict: Summary of processed subscriptions
-    """
-    from subscriptions.models import UserSubscription, SubscriptionPlan
-    
-    try:
-        # Get Free plan for downgrading
-        free_plan = SubscriptionPlan.objects.get(name='Free')
-        
-        # Find subscriptions in past_due status with expired grace period
-        expired_subscriptions = UserSubscription.objects.filter(
-            status=UserSubscription.STATUS_PAST_DUE,
-            grace_period_end__lt=timezone.now(),
-            is_active=True
-        ).exclude(plan__name='Free')
-        
-        expired_count = 0
-        for subscription in expired_subscriptions:
-            with transaction.atomic():
-                # Mark as expired
-                subscription.status = UserSubscription.STATUS_EXPIRED
-                subscription.is_active = False
-                
-                # Downgrade to Free plan
-                old_plan = subscription.plan.name
-                subscription.plan = free_plan
-                subscription.stripe_subscription_id = None
-                subscription.current_period_end = None
-                subscription.grace_period_end = None
-                subscription.save()
-                
-                # Delete user feature overrides
-                subscription.usersubscriptionfeature_set.all().delete()
-                
-                expired_count += 1
-                logger.info(
-                    f"Expired subscription {subscription.id} for user {subscription.user.id}, "
-                    f"downgraded from {old_plan} to Free"
-                )
-                
-                # Dispatch notification
-                try:
-                    from subscriptions.dispatchers import SubscriptionNotificationDispatcher
-                    dispatcher = SubscriptionNotificationDispatcher()
-                    dispatcher.dispatch_subscription_expired(subscription)
-                except ImportError:
-                    logger.warning("Notification dispatcher not available")
-        
-        logger.info(f"Expired {expired_count} subscription(s)")
-        return {
-            'status': 'success',
-            'expired_count': expired_count,
-            'timestamp': timezone.now().isoformat()
-        }
-        
-    except SubscriptionPlan.DoesNotExist:
-        logger.error("Free plan does not exist. Cannot process expired subscriptions.")
-        raise
-    except Exception as e:
-        logger.error(f"Error checking expired subscriptions: {str(e)}")
-        raise self.retry(exc=e, countdown=300)  # Retry after 5 minutes
-
-
-@shared_task(bind=True, max_retries=3)
-def send_renewal_reminders(self):
-    """
-    Send renewal reminders to users whose subscriptions are expiring soon.
-    Runs daily to notify users 3 days before expiration.
-    
-    Returns:
-        dict: Summary of reminders sent
-    """
-    from subscriptions.models import UserSubscription
-    
-    try:
-        # Find subscriptions expiring in 3 days
-        three_days_from_now = timezone.now() + timedelta(days=3)
-        
-        expiring_subscriptions = UserSubscription.objects.filter(
-            status=UserSubscription.STATUS_ACTIVE,
-            current_period_end__date=three_days_from_now.date(),
-            auto_renew=True,
-            is_active=True
-        ).exclude(plan__name='Free')
-        
-        reminder_count = 0
-        for subscription in expiring_subscriptions:
-            try:
-                # Dispatch renewal reminder notification
-                from subscriptions.dispatchers import SubscriptionNotificationDispatcher
-                dispatcher = SubscriptionNotificationDispatcher()
-                dispatcher.dispatch_renewal_reminder(subscription)
-                
-                reminder_count += 1
-                logger.info(f"Sent renewal reminder for subscription {subscription.id}")
-            except ImportError:
-                logger.warning("Notification dispatcher not available")
-                break
-        
-        logger.info(f"Sent {reminder_count} renewal reminder(s)")
-        return {
-            'status': 'success',
-            'reminder_count': reminder_count,
-            'timestamp': timezone.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error sending renewal reminders: {str(e)}")
-        raise self.retry(exc=e, countdown=300)
 
 
 @shared_task(bind=True, max_retries=3)
@@ -249,9 +131,8 @@ def handle_failed_payment(self, subscription_id):
         
         # Dispatch payment failed notification
         try:
-            from subscriptions.dispatchers import SubscriptionNotificationDispatcher
-            dispatcher = SubscriptionNotificationDispatcher()
-            dispatcher.dispatch_payment_failed(subscription)
+            from notifications.dispatchers.subscription import SubscriptionNotificationDispatcher
+            SubscriptionNotificationDispatcher.dispatch_payment_failed(subscription)
         except ImportError:
             logger.warning("Notification dispatcher not available")
         

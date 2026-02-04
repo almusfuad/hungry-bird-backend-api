@@ -1,15 +1,18 @@
-from notifications.base import BaseNotifier
+from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import logging
 
 logger = logging.getLogger('subscriptions')
 
 
-class SubscriptionNotifier(BaseNotifier):
+class SubscriptionNotifier:
     """
     Notifier for sending subscription-related notifications via WebSocket.
-    Extends BaseNotifier to use Django Channels.
+    Uses Django Channels for real-time notifications.
     """
+    
+    def __init__(self):
+        self.channel_layer = get_channel_layer()
     
     def notify_subscription_change(self, user_id, message, subscription_data):
         """
