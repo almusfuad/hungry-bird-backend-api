@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'driver',
     'review',
     'subscriptions',
+    'dashboard',
 ]
 
 MIDDLEWARE = [
