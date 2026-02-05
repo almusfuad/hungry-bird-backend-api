@@ -1,1 +1,3 @@
-# Models will be imported here
+from .recommendation_log import RecommendationLog
+
+__all__ = ['RecommendationLog']
