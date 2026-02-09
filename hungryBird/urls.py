@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/v1/subscriptions/', include('subscriptions.urls')),
     path('api/v1/payment/webhooks/subscription/', subscription_webhook_handler, name='subscription-webhook'),
     path('api/v1/dashboard/', include('dashboard.urls')),
+    path('api/v1/recommendations/', include('recommendations.urls')),
 ]
 
 # Serve media files during development
