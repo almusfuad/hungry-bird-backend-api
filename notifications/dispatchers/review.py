@@ -1,4 +1,5 @@
 from notifications.notifiers import ReviewNotifier, ReviewResponseNotifier
+from notifications.notifiers.customer import ReviewPromptNotifier
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,4 +32,24 @@ class ReviewNotificationDispatcher:
             logger.exception(
                 "Failed to send review response notification for response %s",
                 response.id
+            )
+    
+    @classmethod
+    def dispatch_review_prompt(cls, order):
+        """
+        Dispatch review prompt notification to customer after order delivery.
+        
+        This method is called by a Celery task 1 hour after order delivery
+        to encourage the customer to leave a review.
+        
+        Args:
+            order: Order instance that was delivered
+        """
+        try:
+            notifier = ReviewPromptNotifier(order)
+            notifier.notify()
+        except Exception as e:
+            logger.exception(
+                "Failed to send review prompt notification for order %s",
+                order.id
             )

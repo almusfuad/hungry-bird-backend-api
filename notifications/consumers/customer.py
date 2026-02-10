@@ -41,3 +41,14 @@ class CustomerConsumer(AsyncWebsocketConsumer):
             "owner_name": event.get("owner_name"),
             "message": event.get("message"),
         }))
+    
+    # Handles: type="review.prompt"
+    async def review_prompt(self, event):
+        """Handle review prompt notifications sent 1 hour after delivery"""
+        await self.send(text_data=json.dumps({
+            "type": "review_prompt",
+            "order_id": event.get("order_id"),
+            "restaurant_id": event.get("restaurant_id"),
+            "restaurant_name": event.get("restaurant_name"),
+            "message": event.get("message"),
+        }))

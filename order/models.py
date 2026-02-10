@@ -172,6 +172,16 @@ class Order(TimeStampedModel, LocationModel):
                     lambda: OrderNotificationDispatcher.dispatch(self)
                 )
                 return
+            
+            # If order is delivered, schedule review prompt for 1 hour later
+            if new_status == 5:
+                from review.tasks import send_review_prompt
+                transaction.on_commit(
+                    lambda: send_review_prompt.apply_async(
+                        args=[self.id],
+                        countdown=3600  # 1 hour delay
+                    )
+                )
 
             if new_status == 3 and not self.driver:  # Ready for Pickup by Owner
                 driver = self.restaurant.assign_driver(self)
