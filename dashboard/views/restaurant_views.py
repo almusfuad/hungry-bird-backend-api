@@ -1,11 +1,24 @@
+"""Restaurant dashboard views.
+
+This module provides API views for restaurant owner analytics and metrics.
+"""
+
+from datetime import datetime, timedelta
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from dashboard.services import restaurant_dashboard
+
+from dashboard.services import restaurant
+from dashboard.services import analytics
 from dashboard.utils.export import check_export_rate_limit, export_to_csv, log_export
 from dashboard.serializers.dashboard_serializers import DateRangeSerializer
-from datetime import datetime, timedelta
+from dashboard.serializers.forecasting_serializers import (
+    ForecastRequestSerializer,
+    GrowthRateRequestSerializer,
+    DemandPatternsRequestSerializer
+)
 
 
 class DailyOrdersView(APIView):
@@ -35,7 +48,7 @@ class DailyOrdersView(APIView):
             filters['date_end'] = datetime.now().date()
         
         # Get data
-        data = restaurant_dashboard.get_daily_orders(
+        data = restaurant.get_daily_orders(
             restaurant.id,
             date_start=filters.get('date_start'),
             date_end=filters.get('date_end'),
@@ -71,7 +84,7 @@ class OrderSourceComparisonView(APIView):
         serializer.is_valid(raise_exception=True)
         filters = serializer.validated_data
         
-        data = restaurant_dashboard.get_order_source_comparison(
+        data = restaurant.get_order_source_comparison(
             restaurant.id,
             date_start=filters.get('date_start'),
             date_end=filters.get('date_end')
@@ -106,7 +119,7 @@ class TopCustomersView(APIView):
         filters = serializer.validated_data
         
         limit = int(request.query_params.get('limit', 50))
-        data = restaurant_dashboard.get_top_customers(
+        data = restaurant.get_top_customers(
             restaurant.id,
             date_start=filters.get('date_start'),
             date_end=filters.get('date_end'),
@@ -142,7 +155,7 @@ class PopularItemsView(APIView):
         filters = serializer.validated_data
         
         limit = int(request.query_params.get('limit', 20))
-        data = restaurant_dashboard.get_popular_items(
+        data = restaurant.get_popular_items(
             restaurant.id,
             date_start=filters.get('date_start'),
             date_end=filters.get('date_end'),
@@ -178,7 +191,7 @@ class DriverPerformanceView(APIView):
         filters = serializer.validated_data
         
         driver_id = request.query_params.get('driver_id')
-        data = restaurant_dashboard.get_driver_performance(
+        data = restaurant.get_driver_performance(
             restaurant.id,
             driver_id=driver_id,
             date_start=filters.get('date_start'),
@@ -192,5 +205,187 @@ class DriverPerformanceView(APIView):
                 return export_to_csv(data, 'driver_performance')
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        return Response({'data': data}, status=status.HTTP_200_OK)
+
+
+class PeriodComparisonView(APIView):
+    """Compare current period metrics with previous period (MoM, WoW, YoY)."""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get period-over-period comparison."""
+        if request.user.role != 2:
+            return Response(
+                {'error': 'Only restaurant owners can access this'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            restaurant = request.user.restaurant
+        except:
+            return Response(
+                {'error': 'Restaurant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate request
+        serializer = GrowthRateRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        
+        # Get period comparison
+        data = restaurant.get_period_comparison(
+            restaurant_id=restaurant.id,
+            comparison_type=filters.get('comparison_type', 'mom'),
+            current_period_start=filters.get('current_period_start'),
+            current_period_end=filters.get('current_period_end')
+        )
+        
+        return Response({'data': data}, status=status.HTTP_200_OK)
+
+
+class PeakHoursAnalysisView(APIView):
+    """Analyze peak ordering hours and day-of-week patterns."""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get peak hours and busiest days analysis."""
+        if request.user.role != 2:
+            return Response(
+                {'error': 'Only restaurant owners can access this'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            restaurant = request.user.restaurant
+        except:
+            return Response(
+                {'error': 'Restaurant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate request
+        serializer = DateRangeSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        
+        # Get peak hours analysis
+        data = restaurant.get_peak_hours_analysis(
+            restaurant_id=restaurant.id,
+            date_start=filters.get('date_start'),
+            date_end=filters.get('date_end')
+        )
+        
+        return Response({'data': data}, status=status.HTTP_200_OK)
+
+
+class CustomerRetentionMetricsView(APIView):
+    """Get customer retention and repeat customer metrics."""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get customer retention metrics."""
+        if request.user.role != 2:
+            return Response(
+                {'error': 'Only restaurant owners can access this'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            restaurant = request.user.restaurant
+        except:
+            return Response(
+                {'error': 'Restaurant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate request
+        serializer = DateRangeSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        
+        # Get retention metrics
+        data = restaurant.get_customer_retention_metrics(
+            restaurant_id=restaurant.id,
+            date_start=filters.get('date_start'),
+            date_end=filters.get('date_end')
+        )
+        
+        return Response({'data': data}, status=status.HTTP_200_OK)
+
+
+class RevenueForecastView(APIView):
+    """Get revenue forecast for restaurant."""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get revenue forecast using statistical methods."""
+        if request.user.role != 2:
+            return Response(
+                {'error': 'Only restaurant owners can access this'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            restaurant = request.user.restaurant
+        except:
+            return Response(
+                {'error': 'Restaurant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate request
+        serializer = ForecastRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        
+        # Get forecast
+        data = analytics.forecast_revenue(
+            restaurant_id=restaurant.id,
+            periods_ahead=filters.get('periods_ahead', 7),
+            method=filters.get('method', 'moving_average'),
+            date_start=filters.get('date_start'),
+            date_end=filters.get('date_end')
+        )
+        
+        return Response({'data': data}, status=status.HTTP_200_OK)
+
+
+class DemandPatternsView(APIView):
+    """Analyze and predict demand patterns."""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get demand patterns by day of week and hour."""
+        if request.user.role != 2:
+            return Response(
+                {'error': 'Only restaurant owners can access this'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            restaurant = request.user.restaurant
+        except:
+            return Response(
+                {'error': 'Restaurant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate request
+        serializer = DemandPatternsRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        
+        # Get demand patterns
+        data = analytics.predict_demand_patterns(
+            restaurant_id=restaurant.id,
+            analysis_days=filters.get('analysis_days', 30)
+        )
         
         return Response({'data': data}, status=status.HTTP_200_OK)

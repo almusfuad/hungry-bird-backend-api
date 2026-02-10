@@ -112,6 +112,24 @@ CHANNEL_LAYERS = {
     }
 }
 
+# ============================================================
+# Cache Configuration (Django-Redis)
+# ============================================================
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f"redis://{os.environ.get('REDIS_HOST', '127.0.0.1')}:{int(os.environ.get('REDIS_PORT', '6379'))}/2",
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PARSER_CLASS': 'redis.connection.HiredisParser',
+            'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+            'PICKLE_VERSION': -1,
+        },
+        'KEY_PREFIX': 'hungrybird',
+        'TIMEOUT': 1800,  # Default timeout: 30 minutes
+    }
+}
+
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases

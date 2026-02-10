@@ -1,11 +1,31 @@
-from django.db.models import Count, Sum, Avg, Q
+"""Driver overview metrics.
+
+Basic delivery statistics and earnings for drivers.
+"""
+
+from typing import Optional
+from datetime import datetime
+
 from order.models import Order
 from dashboard.models import OrderStatusTransition
 from hungryBird.utils import calculate_distance
 
 
-def get_driver_overview(driver_id, date_start=None, date_end=None):
-    """Get driver's delivery statistics and earnings."""
+def get_driver_overview(
+    driver_id: int,
+    date_start: Optional[datetime] = None,
+    date_end: Optional[datetime] = None
+) -> dict:
+    """Get driver's delivery statistics and earnings.
+    
+    Args:
+        driver_id: Driver user ID.
+        date_start: Start date for filtering (inclusive).
+        date_end: End date for filtering (inclusive).
+        
+    Returns:
+        Dictionary containing driver delivery metrics.
+    """
     queryset = Order.objects.filter(driver_id=driver_id, status=5)
     
     if date_start:
