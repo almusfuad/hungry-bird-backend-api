@@ -29,6 +29,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'name',
             'price',
             'duration_days',
+            'trial_days',
             'description',
             'grace_period_days',
             'active_features'

@@ -15,6 +15,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'name',
         'price',
         'duration_days',
+        'trial_days',
         'grace_period_days',
         'feature_count',
         'is_active',
@@ -32,7 +33,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('name', 'description')
         }),
         ('Stripe & Pricing', {
-            'fields': ('stripe_price_id', 'price', 'duration_days')
+            'fields': ('stripe_price_id', 'price', 'duration_days', 'trial_days')
         }),
         ('Configuration', {
             'fields': ('grace_period_days', 'is_active')

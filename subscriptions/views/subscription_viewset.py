@@ -84,6 +84,7 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
         
         plan = serializer.validated_data['plan_id']
         payment_method_id = serializer.validated_data.get('payment_method_id')
+        use_trial = serializer.validated_data.get('use_trial', True)
         
         try:
             with transaction.atomic():
@@ -106,11 +107,18 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
                     else:
                         customer_id = request.user.stripe_customer_id
                     
+                    # Determine trial period
+                    trial_period_days = None
+                    if use_trial and plan.trial_days > 0:
+                        trial_period_days = plan.trial_days
+                        logger.info(f"Applying {trial_period_days} day trial for user {request.user.id}")
+                    
                     # Create Stripe subscription
                     stripe_subscription = SubscriptionService.create_subscription(
                         customer_id=customer_id,
                         price_id=plan.stripe_price_id,
-                        payment_method_id=payment_method_id
+                        payment_method_id=payment_method_id,
+                        trial_period_days=trial_period_days
                     )
                     
                     # Create local subscription record

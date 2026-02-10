@@ -142,6 +142,11 @@ class UserSubscriptionCreateSerializer(serializers.Serializer):
         required=False,
         help_text="Stripe payment method ID (required for paid plans)"
     )
+    use_trial = serializers.BooleanField(
+        default=True,
+        required=False,
+        help_text="Whether to use trial period if available (default: True)"
+    )
     
     def validate(self, attrs):
         """Validate subscription creation"""

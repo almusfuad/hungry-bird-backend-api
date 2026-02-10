@@ -38,6 +38,10 @@ class SubscriptionPlan(TimeStampedModel):
         default=3,
         help_text="Days of grace period after payment failure before downgrading"
     )
+    trial_days = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of days for trial period (0 for no trial)"
+    )
 
     class Meta:
         db_table = 'subscription_plans'
