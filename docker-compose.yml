@@ -1,0 +1,50 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: hungry-bird-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hungry-bird-network
+
+  backend-api:
+    build: .
+    container_name: hungry-bird-api
+    ports:
+      - "${EXTERNAL_PORT:-8001}:${PORT:-8000}"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PORT=${PORT:-8000}
+      - ENABLE_REDIS_CHECK=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    restart: unless-stopped
+    networks:
+      - hungry-bird-network
+
+volumes:
+  redis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  hungry-bird-network:
+    driver: bridge

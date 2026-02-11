@@ -47,6 +47,4 @@ COPY . .
 RUN mkdir -p logs media staticfiles && \
     chmod +x entrypoint.sh
 
-EXPOSE 8000
-
 ENTRYPOINT ["./entrypoint.sh"]
