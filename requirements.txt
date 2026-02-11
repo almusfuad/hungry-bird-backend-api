@@ -11,6 +11,7 @@ djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 django-storages==1.14.6
 drf-yasg==1.21.11
+packaging==24.0
 pillow==12.1.0
 prompt_toolkit==3.0.52
 psycopg==3.3.2

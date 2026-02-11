@@ -1,32 +1,39 @@
 #!/bin/bash
-set -e
 
 echo "🚀 Starting Hungry Bird Backend..."
 
-# Wait for PostgreSQL
-if [ "${DEBUG:-False}" != "True" ]; then
-    echo "⏳ Waiting for PostgreSQL..."
-    while ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/${DATABASE_HOST:-localhost}/${DATABASE_PORT:-5432}" 2>/dev/null; do
-        sleep 2
+# Check Redis only if explicitly enabled (default: disabled for MVP)
+if [ "${ENABLE_REDIS_CHECK:-false}" = "true" ]; then
+    echo "⏳ Waiting for Redis..."
+    max_attempts=30
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if timeout 1 bash -c "cat < /dev/null > /dev/tcp/${REDIS_HOST:-127.0.0.1}/${REDIS_PORT:-6379}" 2>/dev/null; then
+            echo "✅ Redis is ready"
+            break
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -lt $max_attempts ]; then
+            echo "   Attempt $attempt/$max_attempts..."
+            sleep 2
+        fi
     done
-    echo "✅ PostgreSQL is ready"
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo "⚠️  Redis not accessible, continuing anyway..."
+    fi
+else
+    echo "⏭️  Redis check disabled (set ENABLE_REDIS_CHECK=true to enable)"
 fi
-
-# Wait for Redis
-echo "⏳ Waiting for Redis..."
-while ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/${REDIS_HOST:-127.0.0.1}/${REDIS_PORT:-6379}" 2>/dev/null; do
-    sleep 2
-done
-echo "✅ Redis is ready"
 
 # Run migrations
 echo "🔄 Running database migrations..."
-python manage.py migrate --noinput
+python manage.py migrate --noinput 2>&1 || echo "⚠️  Migration failed, continuing..."
 
 # Collect static files (production only)
 if [ "${DEBUG:-False}" = "False" ]; then
     echo "📦 Collecting static files..."
-    python manage.py collectstatic --noinput
+    python manage.py collectstatic --noinput 2>&1 || echo "⚠️  Static files collection failed, continuing..."
 fi
 
 # Start web server
